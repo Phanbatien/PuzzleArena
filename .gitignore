@@ -1,0 +1,27 @@
+# .NET
+bin/
+obj/
+*.user
+.vs/
+
+# Local SQLite database
+*.db
+*.db-shm
+*.db-wal
+
+# Node / Next.js (frontend/.gitignore covers the rest)
+node_modules/
+.next/
+
+# Secrets and local overrides
+.env
+.env.local
+appsettings.Production.json
+
+# Meeting audio stays off the repo; the write-up is docs/meeting-notes.md
+docs/*.m4a
+
+# Editors / tools
+.idea/
+.vscode/
+.claude/
