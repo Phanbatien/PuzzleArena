@@ -1,103 +1,110 @@
-"use client";
-import { useState, useEffect } from "react";
+"use client"; // Bắt buộc phải có dòng này để dùng trạng thái (state) và sự kiện click
+import { useState } from "react";
+
+// Tách riêng dữ liệu giả cho 2 game Sudoku và Minesweeper
+const mockLeaderboard = {
+  Sudoku: [
+    { rank: 1, username: "SudokuMaster99", rating: 2850, winRate: "92%", matches: 156 },
+    { rank: 2, username: "PuzzleQueen", rating: 2795, winRate: "88%", matches: 210 },
+    { rank: 3, username: "LogicKing", rating: 2710, winRate: "85%", matches: 189 },
+    { rank: 4, username: "GridWalker", rating: 2650, winRate: "79%", matches: 145 },
+    { rank: 5, username: "NumberNinja", rating: 2600, winRate: "75%", matches: 120 },
+  ],
+  Minesweeper: [
+    { rank: 1, username: "BoomSweeper", rating: 2950, winRate: "95%", matches: 312 },
+    { rank: 2, username: "MineHunter", rating: 2810, winRate: "89%", matches: 245 },
+    { rank: 3, username: "SafeClicker", rating: 2765, winRate: "86%", matches: 198 },
+    { rank: 4, username: "FlagMaster", rating: 2680, winRate: "81%", matches: 167 },
+    { rank: 5, username: "NoExplosions", rating: 2590, winRate: "77%", matches: 134 },
+  ]
+};
 
 export default function LeaderboardPage() {
-  const [data, setData] = useState<{id: number, name: string, score: number}[]>([]);
-  const [selectedGame, setSelectedGame] = useState("Sudoku");
-  const [selectedTab, setSelectedTab] = useState("Hạng");
+  // State lưu trữ tab đang được chọn (Mặc định là Sudoku)
+  const [activeTab, setActiveTab] = useState<"Sudoku" | "Minesweeper">("Sudoku");
   
-  // Tạm giả lập ID của bạn đang đăng nhập là 3
-  const myUserId = 3;
-
-  useEffect(() => {
-    // Mock data thay đổi linh hoạt theo Tab (sau này gọi API thật vào đây)
-    setData([
-      { id: 1, name: "Siêu Trí Tuệ", score: 2500 },
-      { id: 2, name: "Thợ Săn Mìn", score: 2150 },
-      { id: 3, name: "Quang Huy (Bạn)", score: 1900 }, // Đây là dòng của chính mình
-      { id: 4, name: "Người chơi 4", score: 1500 },
-      { id: 5, name: "Người chơi 5", score: 1450 }
-    ]);
-  }, [selectedGame, selectedTab]);
-
-  const getMedal = (index: number) => {
-    if (index === 0) return "🥇";
-    if (index === 1) return "🥈";
-    if (index === 2) return "🥉";
-    return <span className="text-slate-400 font-bold ml-1">#{index + 1}</span>;
-  };
+  // Lấy danh sách người chơi dựa trên tab đang chọn
+  const currentPlayers = mockLeaderboard[activeTab];
 
   return (
-    <div className="min-h-screen bg-slate-50 p-6 md:p-12">
-      <div className="max-w-4xl mx-auto">
-        <div className="text-center mb-8">
-          <h1 className="text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-amber-500 to-orange-600 mb-2">
-            🏆 Bảng Phong Thần
+    <div className="min-h-screen bg-slate-50 p-6 dark:bg-slate-900 font-sans">
+      <div className="max-w-5xl mx-auto">
+        <div className="text-center mb-10">
+          <h1 className="text-3xl md:text-4xl font-extrabold text-slate-800 dark:text-slate-100 mb-3">
+            🏆 Bảng Xếp Hạng Global
           </h1>
+          <p className="text-slate-600 dark:text-slate-400">
+            Tôn vinh những bộ óc vĩ đại nhất của Đấu Trường Puzzle
+          </p>
         </div>
 
-        {/* BỘ LỌC TÌM KIẾM */}
-        <div className="flex flex-col md:flex-row justify-between items-center gap-4 mb-8 bg-white p-4 rounded-2xl shadow-sm border border-slate-200">
-          {/* Chọn Game */}
-          <div className="flex bg-slate-100 p-1 rounded-lg">
-            {["Sudoku", "Minesweeper"].map(game => (
-              <button 
-                key={game} 
-                onClick={() => setSelectedGame(game)}
-                className={`px-6 py-2 rounded-md font-semibold transition-all ${selectedGame === game ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-500 hover:text-slate-700'}`}
-              >
-                {game === "Sudoku" ? "🔢 Sudoku" : "💣 Dò Mìn"}
-              </button>
-            ))}
-          </div>
-
-          {/* Chọn 3 Bảng (Hạng / Ngày / Tuần) */}
-          <div className="flex gap-2">
-            {["Hạng", "Top Ngày", "Top Tuần"].map(tab => (
-              <button 
-                key={tab}
-                onClick={() => setSelectedTab(tab)}
-                className={`px-4 py-2 border-b-2 font-bold transition-colors ${selectedTab === tab ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
-              >
-                {tab}
-              </button>
-            ))}
-          </div>
+        {/* Tab chọn Game có logic đổi màu */}
+        <div className="flex justify-center gap-2 mb-6">
+          <button 
+            onClick={() => setActiveTab("Sudoku")}
+            className={`px-6 py-2 font-semibold rounded-lg shadow-sm transition-colors ${
+              activeTab === "Sudoku" 
+                ? "bg-sky-600 text-white" 
+                : "bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700"
+            }`}
+          >
+            Sudoku
+          </button>
+          
+          <button 
+            onClick={() => setActiveTab("Minesweeper")}
+            className={`px-6 py-2 font-semibold rounded-lg shadow-sm transition-colors ${
+              activeTab === "Minesweeper" 
+                ? "bg-sky-600 text-white" 
+                : "bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700"
+            }`}
+          >
+            Minesweeper
+          </button>
         </div>
-        
-        {/* BẢNG DỮ LIỆU */}
-        <div className="bg-white rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100 overflow-hidden">
-          <table className="w-full text-left">
-            <thead className="bg-slate-50 border-b border-slate-100 text-slate-500 uppercase text-sm font-bold">
-              <tr>
-                <th className="p-4 text-center w-24">Hạng</th>
-                <th className="p-4">Tuyển thủ</th>
-                <th className="p-4 text-right pr-8">{selectedTab === "Hạng" ? "Điểm Elo" : "Thời gian giải"}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.map((user, index) => {
-                const isMe = user.id === myUserId;
-                return (
+
+        <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse min-w-[600px]">
+              <thead>
+                <tr className="bg-slate-100 dark:bg-slate-900/50 border-b border-slate-200 dark:border-slate-700">
+                  <th className="p-4 font-bold text-slate-600 dark:text-slate-300 text-center w-24">Hạng</th>
+                  <th className="p-4 font-bold text-slate-600 dark:text-slate-300">Tuyển thủ</th>
+                  <th className="p-4 font-bold text-slate-600 dark:text-slate-300 text-center">Rating</th>
+                  <th className="p-4 font-bold text-slate-600 dark:text-slate-300 text-center">Tỉ lệ thắng</th>
+                  <th className="p-4 font-bold text-slate-600 dark:text-slate-300 text-center">Số trận</th>
+                </tr>
+              </thead>
+              <tbody>
+                {currentPlayers.map((player) => (
                   <tr 
-                    key={user.id} 
-                    // NỔI BẬT DÒNG CỦA CHÍNH MÌNH 
-                    className={`border-b border-slate-50 transition-colors 
-                      ${isMe ? 'bg-indigo-50 border-l-4 border-l-indigo-500' : (index < 3 ? 'bg-amber-50/30' : 'hover:bg-slate-50')}
-                    `}
+                    key={player.rank} 
+                    className="border-b border-slate-100 dark:border-slate-700/50 hover:bg-slate-50 dark:hover:bg-slate-700/25 transition-colors"
                   >
-                    <td className="p-4 text-center text-2xl">{getMedal(index)}</td>
-                    <td className="p-4">
-                      <span className={`text-lg ${isMe ? 'font-bold text-indigo-700' : 'font-semibold text-slate-800'}`}>
-                        {user.name}
-                      </span>
+                    <td className="p-4 text-center">
+                      {player.rank === 1 ? <span className="inline-block w-8 h-8 leading-8 bg-yellow-400 text-yellow-900 font-bold rounded-full shadow-sm">1</span> :
+                       player.rank === 2 ? <span className="inline-block w-8 h-8 leading-8 bg-slate-300 text-slate-800 font-bold rounded-full shadow-sm">2</span> :
+                       player.rank === 3 ? <span className="inline-block w-8 h-8 leading-8 bg-amber-600 text-amber-100 font-bold rounded-full shadow-sm">3</span> :
+                       <span className="font-semibold text-slate-500 dark:text-slate-400">{player.rank}</span>}
                     </td>
-                    <td className="p-4 text-right pr-8 font-black text-indigo-600 text-xl">{user.score}</td>
+                    <td className="p-4 font-bold text-slate-800 dark:text-slate-200">
+                      {player.username}
+                      {player.rank === 1 && <span className="ml-2 text-xs text-yellow-600 dark:text-yellow-400">👑 MVP</span>}
+                    </td>
+                    <td className="p-4 text-center font-mono font-bold text-sky-600 dark:text-sky-400">
+                      {player.rating}
+                    </td>
+                    <td className="p-4 text-center font-medium text-green-600 dark:text-green-400">
+                      {player.winRate}
+                    </td>
+                    <td className="p-4 text-center text-slate-600 dark:text-slate-400">
+                      {player.matches}
+                    </td>
                   </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     </div>

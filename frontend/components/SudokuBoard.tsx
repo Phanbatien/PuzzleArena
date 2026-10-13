@@ -29,7 +29,7 @@ const BOARD_SIZE = 9;
 const CELL_COUNT = BOARD_SIZE * BOARD_SIZE;
 const DIGITS = [1, 2, 3, 4, 5, 6, 7, 8, 9] as const;
 
-function toBoardCells(value: string): string[] {
+function toBoardCells(value: string = ""): string[] {
   return Array.from({ length: CELL_COUNT }, (_, index) => {
     const cell = value[index];
     return cell !== undefined && /^[0-9]$/.test(cell) ? cell : "0";
