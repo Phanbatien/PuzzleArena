@@ -44,12 +44,12 @@ function Cell({ index, value, given, selected, highlighted, matchingValue, wrong
     "relative flex min-w-0 items-center justify-center border-b border-r border-slate-300 text-lg font-semibold transition-colors sm:text-xl dark:border-slate-700",
     col === 2 || col === 5 ? "border-r-2 border-r-slate-900 dark:border-r-slate-100" : "",
     row === 2 || row === 5 ? "border-b-2 border-b-slate-900 dark:border-b-slate-100" : "",
-    given ? "text-slate-900 dark:text-slate-100" : "text-blue-700 dark:text-blue-300",
+    given ? "text-slate-900 dark:text-slate-100" : "text-brand-600 dark:text-brand-300",
     highlighted ? "bg-amber-100/70 dark:bg-amber-400/15" : "bg-white dark:bg-slate-950",
     matchingValue ? "bg-amber-200 dark:bg-amber-400/30" : "",
-    selected ? "z-10 bg-sky-200 ring-2 ring-inset ring-sky-600 dark:bg-sky-700/70 dark:ring-sky-300" : "",
+    selected ? "z-10 bg-brand-200 ring-2 ring-inset ring-brand-600 dark:bg-brand-700/70 dark:ring-brand-300" : "",
     wrong ? "animate-pulse bg-red-200 text-red-800 dark:bg-red-900/70 dark:text-red-100" : "",
-    interactive ? "cursor-pointer hover:bg-sky-100 dark:hover:bg-sky-900/50" : "cursor-default",
+    interactive ? "cursor-pointer hover:bg-brand-100 dark:hover:bg-brand-900/50" : "cursor-default",
   ].filter(Boolean).join(" ");
   const label = `Hàng ${row + 1}, cột ${col + 1}, giá trị ${displayValue ?? "trống"}${given ? ", ô cho sẵn" : ""}`;
 
@@ -67,8 +67,8 @@ function NumberPad({ pencilMode, disabled, onPencilModeChange, onValue }: Number
   return <div className="mt-4 w-full max-w-md space-y-3">
     <button type="button" onClick={onPencilModeChange} disabled={disabled} aria-pressed={pencilMode} className={`min-h-11 rounded-lg border px-4 text-sm font-semibold transition-colors ${pencilMode ? "border-amber-500 bg-amber-100 text-amber-900 dark:bg-amber-500/20 dark:text-amber-100" : "border-slate-300 bg-white text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"} disabled:cursor-not-allowed disabled:opacity-50`}>✎ Ghi chú: {pencilMode ? "Bật" : "Tắt"}</button>
     <div className="grid grid-cols-5 gap-2">
-      {DIGITS.map((digit) => <button key={digit} type="button" onClick={() => onValue(digit)} disabled={disabled} className="aspect-square rounded-lg bg-slate-800 text-lg font-bold text-white transition-colors hover:bg-slate-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-600 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-white disabled:cursor-not-allowed disabled:opacity-50" aria-label={`Nhập số ${digit}`}>{digit}</button>)}
-      <button type="button" onClick={() => onValue(0)} disabled={disabled} className="col-span-5 min-h-12 rounded-lg border border-slate-300 bg-white font-semibold text-slate-700 transition-colors hover:bg-slate-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50">Xóa ô đang chọn</button>
+      {DIGITS.map((digit) => <button key={digit} type="button" onClick={() => onValue(digit)} disabled={disabled} className="aspect-square rounded-lg bg-slate-800 text-lg font-bold text-white transition-colors hover:bg-slate-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-white disabled:cursor-not-allowed disabled:opacity-50" aria-label={`Nhập số ${digit}`}>{digit}</button>)}
+      <button type="button" onClick={() => onValue(0)} disabled={disabled} className="col-span-5 min-h-12 rounded-lg border border-slate-300 bg-white font-semibold text-slate-700 transition-colors hover:bg-slate-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50">Xóa ô đang chọn</button>
     </div>
   </div>;
 }

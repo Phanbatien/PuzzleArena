@@ -60,7 +60,7 @@ export default function SudokuDevPage() {
     <main className="min-h-screen bg-slate-100 px-4 py-8 text-slate-900 dark:bg-slate-950 dark:text-slate-100 sm:px-8">
       <div className="mx-auto flex w-full max-w-2xl flex-col items-center gap-6">
         <div className="w-full text-center">
-          <p className="text-sm font-semibold uppercase tracking-widest text-sky-700 dark:text-sky-300">PuzzleArena</p>
+          <p className="text-sm font-semibold uppercase tracking-widest text-brand-700 dark:text-brand-300">PuzzleArena</p>
           <h1 className="mt-1 text-3xl font-bold">Sudoku Board Demo</h1>
           <p className="mt-2 text-slate-600 dark:text-slate-400">Đề {puzzle.label.toLowerCase()} · Lỗi giả lập: {mistakes}</p>
         </div>
@@ -68,7 +68,7 @@ export default function SudokuDevPage() {
         <section className="grid w-full max-w-md grid-cols-2 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900" aria-label="Thông tin ván chơi">
           <div className="border-r border-slate-200 px-5 py-4 text-center dark:border-slate-800">
             <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Thời gian chơi</p>
-            <p className="mt-1 font-mono text-3xl font-bold tabular-nums text-sky-700 dark:text-sky-300" aria-live="polite">{formatElapsedTime(elapsedSeconds)}</p>
+            <p className="mt-1 font-mono text-3xl font-bold tabular-nums text-brand-700 dark:text-brand-300" aria-live="polite">{formatElapsedTime(elapsedSeconds)}</p>
           </div>
           <div className="px-5 py-4 text-center">
             <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Độ khó</p>
@@ -78,7 +78,7 @@ export default function SudokuDevPage() {
 
         <div className="flex flex-wrap justify-center gap-2" role="group" aria-label="Chọn độ khó">
           {DIFFICULTIES.map((level) => (
-            <button key={level} type="button" onClick={() => selectDifficulty(level)} aria-pressed={difficulty === level} className={`rounded-lg px-4 py-2 font-semibold transition-colors ${difficulty === level ? "bg-sky-700 text-white" : "border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800"}`}>
+            <button key={level} type="button" onClick={() => selectDifficulty(level)} aria-pressed={difficulty === level} className={`rounded-lg px-4 py-2 font-semibold transition-colors ${difficulty === level ? "bg-brand-700 text-white" : "border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800"}`}>
               {PUZZLES[level].label}
             </button>
           ))}
@@ -87,7 +87,7 @@ export default function SudokuDevPage() {
         <div className="flex flex-wrap justify-center gap-3">
           <button type="button" onClick={() => setReadOnly((value) => !value)} className="rounded-lg border border-slate-300 bg-white px-4 py-2 font-semibold shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:hover:bg-slate-800">Read only: {readOnly ? "Bật" : "Tắt"}</button>
           <button type="button" onClick={() => setCompact((value) => !value)} className="rounded-lg border border-slate-300 bg-white px-4 py-2 font-semibold shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800">Compact: {compact ? "Bật" : "Tắt"}</button>
-          <button type="button" onClick={() => resetPuzzle()} className="rounded-lg bg-sky-700 px-4 py-2 font-semibold text-white hover:bg-sky-600">Đặt lại đề</button>
+          <button type="button" onClick={() => resetPuzzle()} className="rounded-lg bg-brand-700 px-4 py-2 font-semibold text-white hover:bg-brand-600">Đặt lại đề</button>
         </div>
 
         <SudokuBoard cells={cells} givens={puzzle.cells} readOnly={readOnly} compact={compact} wrongIndex={wrongIndex} onMove={handleMove} />
