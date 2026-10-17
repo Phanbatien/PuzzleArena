@@ -16,6 +16,14 @@ export class ApiError extends Error {
 
 type Method = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
+// Hàm xử lý khi token hết hạn (API trả 401). AuthProvider sẽ đăng ký hàm này.
+type UnauthorizedHandler = () => void;
+let unauthorizedHandler: UnauthorizedHandler | null = null;
+
+export function setUnauthorizedHandler(handler: UnauthorizedHandler | null) {
+  unauthorizedHandler = handler;
+}
+
 // Lấy token đã lưu (chỉ chạy được trên trình duyệt)
 function getToken(): string | null {
   if (typeof window === "undefined") return null;
@@ -97,6 +105,18 @@ async function request<T>(
     ) {
       message = (data as { error: string }).error;
     }
+
+    // Token hết hạn: chỉ báo khi đã gửi token đi, và không tính các API đăng nhập/đăng ký
+    // (vì đăng nhập sai mật khẩu cũng có thể trả 401, lúc đó không phải hết hạn).
+    if (
+      response.status === 401 &&
+      token &&
+      !path.startsWith("/api/auth/") &&
+      unauthorizedHandler
+    ) {
+      unauthorizedHandler();
+    }
+
     throw new ApiError(message, response.status);
   }
 
