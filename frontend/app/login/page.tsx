@@ -10,7 +10,7 @@ import Button from "@/components/ui/Button";
 import ErrorMessage from "@/components/ui/ErrorMessage";
 import { api, ApiError } from "@/lib/api";
 import { useAuth } from "@/components/auth/AuthProvider";
-import type { AuthResponse } from "@/types/auth";
+import type { AuthResponse, LoginRequest, RegisterRequest } from "@/types/auth";
 
 type Mode = "login" | "register";
 
@@ -20,6 +20,7 @@ const AFTER_LOGIN_PATH = "/";
 
 type FieldErrors = {
   username?: string;
+  email?: string;
   password?: string;
   confirm?: string;
 };
@@ -30,6 +31,7 @@ export default function LoginPage() {
 
   const [mode, setMode] = useState<Mode>("login");
   const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
@@ -46,11 +48,19 @@ export default function LoginPage() {
 
   // Kiểm tra cơ bản ở frontend để người dùng biết lỗi ngay.
   // Luật chi tiết (độ dài tối thiểu, ký tự cho phép...) do backend quyết định
-  // và backend trả lỗi dạng { error: "..." }, nên ở đây chỉ kiểm tra rỗng và xác nhận mật khẩu.
+  // và backend trả lỗi dạng { error: "..." }, nên ở đây chỉ kiểm tra rỗng,
+  // email có dấu "@" và xác nhận mật khẩu.
   function validate(): FieldErrors {
     const errors: FieldErrors = {};
     if (username.trim() === "") {
       errors.username = "Vui lòng nhập tên tài khoản.";
+    }
+    if (mode === "register") {
+      if (email.trim() === "") {
+        errors.email = "Vui lòng nhập email.";
+      } else if (!email.includes("@")) {
+        errors.email = "Email không hợp lệ.";
+      }
     }
     if (password === "") {
       errors.password = "Vui lòng nhập mật khẩu.";
@@ -71,13 +81,23 @@ export default function LoginPage() {
 
     setLoading(true);
     try {
-      // GIẢ ĐỊNH, cần BE1 xác nhận: body gồm { username, password }.
-      // Entity User có Email nên register có thể cần thêm email; chờ BE1 trả lời.
-      const path = mode === "login" ? "/api/auth/login" : "/api/auth/register";
-      const auth = await api.post<AuthResponse>(path, {
-        username: username.trim(),
-        password,
-      });
+      let auth: AuthResponse;
+      if (mode === "login") {
+        // BE1 đã xác nhận: login chỉ cần { username, password }.
+        const body: LoginRequest = {
+          username: username.trim(),
+          password,
+        };
+        auth = await api.post<AuthResponse>("/api/auth/login", body);
+      } else {
+        // BE1 đã xác nhận: register cần { username, email, password }.
+        const body: RegisterRequest = {
+          username: username.trim(),
+          email: email.trim(),
+          password,
+        };
+        auth = await api.post<AuthResponse>("/api/auth/register", body);
+      }
       login(auth); // lưu token + user, cả app cập nhật
       router.push(AFTER_LOGIN_PATH);
     } catch (err) {
@@ -126,6 +146,17 @@ export default function LoginPage() {
               autoComplete="username"
               disabled={loading}
             />
+            {!isLogin && (
+              <Input
+                label="Email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                error={fieldErrors.email}
+                autoComplete="email"
+                disabled={loading}
+              />
+            )}
             <Input
               label="Mật khẩu"
               type="password"
