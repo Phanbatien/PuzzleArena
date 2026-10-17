@@ -78,7 +78,12 @@ export async function grantBooster(
 ): Promise<GrantBoosterResponse> {
   if (USE_MOCK) {
     await delay(400);
-    // Mock chỉ giả vờ: lấy số trong kho mock rồi cộng thêm, KHÔNG lưu lại gì cả.
+    // LƯU Ý (chỉ đúng với mock): mock KHÔNG dùng request.userId và KHÔNG lưu gì.
+    // Nó lấy số trong mockInventory (kho của người đang đăng nhập, không phải
+    // của người nhận) rồi cộng thêm request.amount. Vì vậy số "Hiện người này
+    // có ..." trong form có thể không khớp với thẻ "Kho bổ trợ" ở trang /daily.
+    // Khi dùng API thật, backend trả số còn lại sau khi cộng (GIẢ ĐỊNH: của
+    // người nhận, cần BE1 xác nhận) nên số này sẽ đúng.
     const current = mockInventory.find((item) => item.type === request.type);
     const base = current ? current.amount : 0;
     return { type: request.type, amount: base + request.amount };

@@ -133,7 +133,12 @@ export default function AdminGrantForm() {
       ) : (
         <div className="flex flex-col gap-4">
           {step === "form" ? (
-            <form onSubmit={handleContinue} className="flex flex-col gap-4">
+            // SỬA: thêm noValidate để trình duyệt không tự chặn bằng thông báo tiếng Anh
+            <form
+              onSubmit={handleContinue}
+              noValidate
+              className="flex flex-col gap-4"
+            >
               <div className="flex flex-col gap-1">
                 <label
                   htmlFor="grant-user"

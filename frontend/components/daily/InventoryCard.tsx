@@ -22,8 +22,9 @@ const boosterDescriptions: Record<InventoryItem["type"], string> = {
 };
 
 export default function InventoryCard({ items }: InventoryCardProps) {
+  // Không đặt title ở đây: tiêu đề "Kho bổ trợ" đã có ở app/daily/page.tsx
   return (
-    <Card title="Kho bổ trợ">
+    <Card>
       <div className="grid gap-3 sm:grid-cols-2">
         {boosterTypes.map((type) => {
           // Tìm loại này trong dữ liệu API; nếu API không trả thì coi như 0
