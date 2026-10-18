@@ -14,9 +14,8 @@ import type { AuthResponse, LoginRequest, RegisterRequest } from "@/types/auth";
 
 type Mode = "login" | "register";
 
-// Trang đến sau khi đăng nhập thành công.
-// TẠM để "/" vì trang /daily chưa làm. Giai đoạn 4 sẽ đổi thành "/daily".
-const AFTER_LOGIN_PATH = "/";
+// Trang đến sau khi đăng nhập hoặc đăng ký thành công.
+const AFTER_LOGIN_PATH = "/daily";
 
 type FieldErrors = {
   username?: string;
