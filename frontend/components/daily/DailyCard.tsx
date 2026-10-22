@@ -1,12 +1,20 @@
 "use client";
 
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
+import { ApiError, api } from "@/lib/api";
 import type { DailyPuzzle } from "@/types/game";
 
 type DailyCardProps = {
   puzzle: DailyPuzzle;
+};
+
+// GIẢ ĐỊNH (BE2 nói response là AttemptResponse có trường id = attemptId,
+// nhưng chưa nói id là số hay chuỗi). Nên cho phép cả hai.
+type StartResponse = {
+  id: number | string;
 };
 
 // Tên game hiển thị bằng tiếng Việt
@@ -37,21 +45,42 @@ export default function DailyCard({ puzzle }: DailyCardProps) {
   const router = useRouter();
   const status = statusInfo[puzzle.status];
 
+  // Đang gọi API tạo lượt chơi, và lỗi nếu có
+  const [starting, setStarting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
   // Chỉ cho chơi khi đề chưa kết thúc
   const canPlay =
     puzzle.status === "NotStarted" || puzzle.status === "InProgress";
   const playLabel = puzzle.status === "InProgress" ? "Chơi tiếp" : "Chơi ngay";
 
-  // GIẢ ĐỊNH (cần FE2/BE2 xác nhận): trang chơi là /play/[id],
-  // trong đó id là attemptId (vì GET /api/attempts/{id} dùng attemptId).
-  // Khi attemptId là null (chưa chơi), chưa biết endpoint nào tạo lượt chơi
-  // cho đề daily (cần BE1/BE2 xác nhận) nên tạm thời chưa cho bấm.
-  const playPath =
-    puzzle.attemptId !== null ? `/play/${puzzle.attemptId}` : null;
+  async function handlePlay() {
+    setError(null);
 
-  function handlePlay() {
-    if (playPath) {
-      router.push(playPath);
+    // Đã có lượt chơi: vào thẳng phòng chơi, KHÔNG tạo lượt thứ hai
+    if (puzzle.attemptId !== null) {
+      router.push(`/play/${puzzle.attemptId}`);
+      return;
+    }
+
+    // Chưa có lượt: nhờ backend tạo lượt cho đề daily này (BE2 xác nhận).
+    // puzzle.id chính là puzzleId trong GET /api/daily.
+    setStarting(true);
+    try {
+      const attempt = await api.post<StartResponse>(
+        `/api/daily/${puzzle.id}/start`,
+      );
+      if (attempt === null || attempt.id === undefined) {
+        setError("Máy chủ không trả về mã lượt chơi. Vui lòng thử lại.");
+        return;
+      }
+      router.push(`/play/${attempt.id}`);
+    } catch (err) {
+      setError(
+        err instanceof ApiError ? err.message : "Không bắt đầu được lượt chơi.",
+      );
+    } finally {
+      setStarting(false);
     }
   }
 
@@ -92,18 +121,10 @@ export default function DailyCard({ puzzle }: DailyCardProps) {
 
       {canPlay && (
         <div className="mt-4">
-          <Button
-            className="w-full"
-            onClick={handlePlay}
-            disabled={playPath === null}
-          >
-            {playLabel}
+          <Button className="w-full" onClick={handlePlay} disabled={starting}>
+            {starting ? "Đang vào..." : playLabel}
           </Button>
-          {playPath === null && (
-            <p className="mt-2 text-xs text-slate-500">
-              Chưa nối được lượt chơi (đang chờ BE1/BE2 xác nhận).
-            </p>
-          )}
+          {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
         </div>
       )}
     </Card>
