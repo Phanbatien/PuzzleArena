@@ -218,6 +218,32 @@ public sealed class AttemptService(AppDb db, IBoosterService boosters, IRatingSe
         return new AttemptResult(attempt);
     }
 
+    /// <summary>
+    /// Bắt đầu lượt chơi từ một đề daily của HÔM NAY. Mỗi người chỉ chơi mỗi đề 1 lần:
+    /// đã có lượt (đang chơi, thắng hay thua) thì trả lại đúng lượt đó, không tạo thêm.
+    /// </summary>
+    public async Task<AttemptResult> StartDaily(int userId, int puzzleId, CancellationToken ct = default)
+    {
+        var puzzle = await db.Puzzles.FirstOrDefaultAsync(p => p.Id == puzzleId && p.IsDaily, ct);
+        if (puzzle is null)
+            return AttemptResult.Fail(StatusCodes.Status404NotFound, "Không tìm thấy đề daily.");
+
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        if (puzzle.DailyDate != today)
+            return AttemptResult.Fail(StatusCodes.Status400BadRequest, "Đề daily này không phải của hôm nay.");
+
+        // Lấy lượt mới nhất, cùng cách chọn với GET /api/daily của BE1.
+        var existing = await db.Attempts.Include(a => a.Puzzle)
+            .Where(a => a.UserId == userId && a.PuzzleId == puzzleId && a.TournamentId == null)
+            .OrderByDescending(a => a.Id)
+            .FirstOrDefaultAsync(ct);
+        if (existing is not null)
+            return new AttemptResult(existing);
+
+        var attempt = await Start(userId, puzzle, ct: ct);
+        return new AttemptResult(attempt);
+    }
+
     public async Task<AttemptResponse> ToResponse(Attempt a, CancellationToken ct = default)
     {
         bool finished = a.Status != AttemptStatus.InProgress;

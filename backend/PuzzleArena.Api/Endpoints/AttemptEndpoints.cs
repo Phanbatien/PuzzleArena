@@ -12,6 +12,21 @@ public static class AttemptEndpoints
         app.MapGet("/api/attempts/{id:int}", Get).RequireAuthorization();
         app.MapPost("/api/attempts/{id:int}/move", Move).RequireAuthorization();
         app.MapPost("/api/attempts/{id:int}/abandon", Abandon).RequireAuthorization();
+        app.MapPost("/api/daily/{puzzleId:int}/start", StartDaily).RequireAuthorization();
+    }
+
+    // Nút "Chơi ngay" ở /daily: tạo lượt từ đề daily (hoặc trả lại lượt đã có) rồi FE chuyển sang /play/{id}.
+    private static async Task<IResult> StartDaily(
+        int puzzleId,
+        HttpContext http,
+        AttemptService attempts,
+        CancellationToken ct)
+    {
+        var userId = AuthEndpoints.CurrentUserId(http);
+        if (userId is null) return Unauthorized();
+
+        var result = await attempts.StartDaily(userId.Value, puzzleId, ct);
+        return await Respond(result, attempts, isMove: false, ct);
     }
 
     private static async Task<IResult> Practice(
