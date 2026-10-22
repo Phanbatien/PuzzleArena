@@ -15,6 +15,10 @@ const BOOSTER_LABEL: Record<BoosterType, string> = {
   Shield: "Khiên",
 };
 
+// BE1 xác nhận: mỗi lần trao chỉ nhận số lượng từ 1 đến 100.
+const MIN_AMOUNT = 1;
+const MAX_AMOUNT = 100;
+
 type Step = "form" | "confirm";
 
 export default function AdminGrantForm() {
@@ -83,8 +87,16 @@ export default function AdminGrantForm() {
       setFormError("Hãy chọn người nhận.");
       return;
     }
-    if (!Number.isInteger(amount) || amount <= 0) {
-      setFormError("Số lượng phải là số nguyên lớn hơn 0.");
+    // Number("") là 0 nên ô trống cũng bị chặn ở đây.
+    // Kiểm tra này chỉ để người dùng đỡ gõ sai; backend vẫn kiểm tra lại.
+    if (
+      !Number.isInteger(amount) ||
+      amount < MIN_AMOUNT ||
+      amount > MAX_AMOUNT
+    ) {
+      setFormError(
+        `Số lượng phải là số nguyên từ ${MIN_AMOUNT} đến ${MAX_AMOUNT}.`,
+      );
       return;
     }
     setFormError(null);
@@ -102,13 +114,17 @@ export default function AdminGrantForm() {
         type,
         amount,
       });
+      // result.amount là SỐ DƯ MỚI của người nhận (BE1 xác nhận), không phải số vừa trao.
       setSuccessMessage(
         `Đã trao ${amount} ${BOOSTER_LABEL[type]} cho ${selectedUser.username}. ` +
           `Hiện người này có ${result.amount} ${BOOSTER_LABEL[result.type]}.`,
       );
       setAmountText("1");
     } catch (err) {
-      // 403: backend trả "Bạn không có quyền thực hiện thao tác này."
+      // Lỗi từ backend hiện đúng nguyên văn, ví dụ:
+      // 400 "Số lượng bổ trợ phải từ 1 đến 100."
+      // 404 "Không tìm thấy người dùng."
+      // 403 "Bạn không có quyền thực hiện thao tác này."
       setSubmitError(
         err instanceof ApiError ? err.message : "Có lỗi xảy ra, hãy thử lại.",
       );
@@ -133,7 +149,7 @@ export default function AdminGrantForm() {
       ) : (
         <div className="flex flex-col gap-4">
           {step === "form" ? (
-            // SỬA: thêm noValidate để trình duyệt không tự chặn bằng thông báo tiếng Anh
+            // noValidate: để trình duyệt không tự chặn bằng thông báo tiếng Anh
             <form
               onSubmit={handleContinue}
               noValidate
@@ -184,12 +200,13 @@ export default function AdminGrantForm() {
                   htmlFor="grant-amount"
                   className="text-sm font-medium text-slate-700"
                 >
-                  Số lượng
+                  Số lượng ({MIN_AMOUNT} đến {MAX_AMOUNT})
                 </label>
                 <input
                   id="grant-amount"
                   type="number"
-                  min={1}
+                  min={MIN_AMOUNT}
+                  max={MAX_AMOUNT}
                   step={1}
                   className={selectClass}
                   value={amountText}
