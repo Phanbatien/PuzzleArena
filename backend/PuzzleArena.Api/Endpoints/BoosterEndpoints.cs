@@ -29,8 +29,8 @@ public static class BoosterEndpoints
 
     private static async Task<IResult> Grant(GrantRequest? body, AppDb db, IBoosterService boosters)
     {
-        if (body is null || body.Amount <= 0)
-            return ApiResults.Error("Số lượng bổ trợ phải lớn hơn 0.", StatusCodes.Status400BadRequest);
+        if (body is null || body.Amount < 1 || body.Amount > 100)
+            return ApiResults.Error("Số lượng bổ trợ phải từ 1 đến 100.", StatusCodes.Status400BadRequest);
         if (!Enum.IsDefined(body.Type))
             return ApiResults.Error("Loại bổ trợ không hợp lệ.", StatusCodes.Status400BadRequest);
 

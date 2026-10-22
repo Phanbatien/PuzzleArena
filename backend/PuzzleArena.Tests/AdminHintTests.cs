@@ -92,6 +92,65 @@ public class AdminHintTests : IClassFixture<ApiFactory>
         Assert.Equal(0, await boosters.Balance(userId, BoosterType.Hint));
     }
 
+    [Fact]
+    public async Task Admin_cannot_lock_or_change_role_of_self()
+    {
+        var admin = _factory.CreateClient();
+        TestAuth.Use(admin, await TestAuth.DevTokenAsync(admin, "admin"));
+        var adminId = (await admin.GetFromJsonAsync<JsonElement>("/api/me")).GetProperty("id").GetInt32();
+
+        var locked = await admin.PatchAsJsonAsync($"/api/admin/users/{adminId}/status", new { isLocked = true });
+        Assert.Equal(HttpStatusCode.BadRequest, locked.StatusCode);
+        var lockedBody = await locked.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal("Bạn không thể tự khóa tài khoản của mình.", lockedBody.GetProperty("error").GetString());
+
+        var users = await admin.GetFromJsonAsync<JsonElement>("/api/admin/users");
+        var row = users.EnumerateArray().Single(u => u.GetProperty("id").GetInt32() == adminId);
+        Assert.False(row.GetProperty("isLocked").GetBoolean());
+        Assert.Equal("Admin", row.GetProperty("role").GetString());
+
+        var unlocked = await admin.PatchAsJsonAsync($"/api/admin/users/{adminId}/status", new { isLocked = false });
+        Assert.Equal(HttpStatusCode.OK, unlocked.StatusCode);
+        var unlockedBody = await unlocked.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.False(unlockedBody.GetProperty("isLocked").GetBoolean());
+
+        var sameRole = await admin.PatchAsJsonAsync($"/api/admin/users/{adminId}/role", new { role = "Admin" });
+        Assert.Equal(HttpStatusCode.BadRequest, sameRole.StatusCode);
+        var demoted = await admin.PatchAsJsonAsync($"/api/admin/users/{adminId}/role", new { role = "Player" });
+        Assert.Equal(HttpStatusCode.BadRequest, demoted.StatusCode);
+        var demotedBody = await demoted.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal("Bạn không thể tự đổi vai trò của mình.", demotedBody.GetProperty("error").GetString());
+
+        users = await admin.GetFromJsonAsync<JsonElement>("/api/admin/users");
+        row = users.EnumerateArray().Single(u => u.GetProperty("id").GetInt32() == adminId);
+        Assert.Equal("Admin", row.GetProperty("role").GetString());
+    }
+
+    [Fact]
+    public async Task Grant_rejects_amounts_outside_1_to_100()
+    {
+        var admin = _factory.CreateClient();
+        TestAuth.Use(admin, await TestAuth.DevTokenAsync(admin, "admin"));
+        var users = await admin.GetFromJsonAsync<JsonElement>("/api/admin/users");
+        var userId = users.EnumerateArray().Single(u => u.GetProperty("username").GetString() == "player8").GetProperty("id").GetInt32();
+
+        var zero = await admin.PostAsJsonAsync("/api/boosters/grant", new { userId, type = "Hint", amount = 0 });
+        Assert.Equal(HttpStatusCode.BadRequest, zero.StatusCode);
+        var zeroBody = await zero.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal("Số lượng bổ trợ phải từ 1 đến 100.", zeroBody.GetProperty("error").GetString());
+
+        var tooMany = await admin.PostAsJsonAsync("/api/boosters/grant", new { userId, type = "Hint", amount = 101 });
+        Assert.Equal(HttpStatusCode.BadRequest, tooMany.StatusCode);
+        var tooManyBody = await tooMany.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal("Số lượng bổ trợ phải từ 1 đến 100.", tooManyBody.GetProperty("error").GetString());
+
+        var max = await admin.PostAsJsonAsync("/api/boosters/grant", new { userId, type = "Hint", amount = 100 });
+        Assert.Equal(HttpStatusCode.OK, max.StatusCode);
+        var maxBody = await max.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal("Hint", maxBody.GetProperty("type").GetString());
+        Assert.Equal(100, maxBody.GetProperty("amount").GetInt32());
+    }
+
     private async Task<int> AddAttempt(int userId, int? tournamentId, AttemptStatus status)
     {
         using var scope = _factory.Services.CreateScope();

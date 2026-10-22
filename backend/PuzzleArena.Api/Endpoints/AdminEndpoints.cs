@@ -24,28 +24,40 @@ public static class AdminEndpoints
         return Results.Ok(users);
     }
 
-    private static async Task<IResult> SetStatus(int id, LockRequest? body, AppDb db)
+    private static async Task<IResult> SetStatus(int id, LockRequest? body, HttpContext http, AppDb db)
     {
         if (body is null)
             return ApiResults.Error("Thiếu trạng thái khóa.", StatusCodes.Status400BadRequest);
 
+        var callerId = AuthEndpoints.CurrentUserId(http);
+        if (callerId is null)
+            return ApiResults.Error("Phiên đăng nhập đã hết hạn hoặc chưa đăng nhập. Vui lòng đăng nhập lại.", StatusCodes.Status401Unauthorized);
+
         var user = await db.Users.FirstOrDefaultAsync(u => u.Id == id);
         if (user is null)
             return ApiResults.Error("Không tìm thấy người dùng.", StatusCodes.Status404NotFound);
+        if (user.Id == callerId && body.IsLocked)
+            return ApiResults.Error("Bạn không thể tự khóa tài khoản của mình.", StatusCodes.Status400BadRequest);
 
         user.IsLocked = body.IsLocked;
         await db.SaveChangesAsync();
         return Results.Ok(ToResponse(user));
     }
 
-    private static async Task<IResult> SetRole(int id, RoleRequest? body, AppDb db)
+    private static async Task<IResult> SetRole(int id, RoleRequest? body, HttpContext http, AppDb db)
     {
         if (body is null || !Enum.IsDefined(body.Role))
             return ApiResults.Error("Vai trò không hợp lệ.", StatusCodes.Status400BadRequest);
 
+        var callerId = AuthEndpoints.CurrentUserId(http);
+        if (callerId is null)
+            return ApiResults.Error("Phiên đăng nhập đã hết hạn hoặc chưa đăng nhập. Vui lòng đăng nhập lại.", StatusCodes.Status401Unauthorized);
+
         var user = await db.Users.FirstOrDefaultAsync(u => u.Id == id);
         if (user is null)
             return ApiResults.Error("Không tìm thấy người dùng.", StatusCodes.Status404NotFound);
+        if (user.Id == callerId)
+            return ApiResults.Error("Bạn không thể tự đổi vai trò của mình.", StatusCodes.Status400BadRequest);
 
         user.Role = body.Role;
         await db.SaveChangesAsync();
