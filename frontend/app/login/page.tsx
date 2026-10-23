@@ -17,6 +17,14 @@ type Mode = "login" | "register";
 // Trang đến sau khi đăng nhập hoặc đăng ký thành công.
 const AFTER_LOGIN_PATH = "/daily";
 
+// Tài khoản dùng thử (do backend seed sẵn). Chỉ có tên, KHÔNG có mật khẩu:
+// dev-login của backend không cần mật khẩu và chỉ tồn tại ở môi trường Development.
+const DEMO_ACCOUNTS = ["admin", "player1", "player2"];
+
+// Next.js thay giá trị này lúc build: khi chạy npm run dev là "development",
+// còn bản build production thì khối dùng thử không được hiển thị.
+const SHOW_DEMO_ACCOUNTS = process.env.NODE_ENV === "development";
+
 type FieldErrors = {
   username?: string;
   email?: string;
@@ -36,8 +44,10 @@ export default function LoginPage() {
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [serverError, setServerError] = useState("");
   const [loading, setLoading] = useState(false);
+  // Tên tài khoản dùng thử đang được đăng nhập (null nếu không có).
+  const [demoUser, setDemoUser] = useState<string | null>(null);
 
-  // Đổi giữa đăng nhập và đăng ký: xóa lỗi và ô xác nhận mật khẩu.
+  // Đổi giữa đăng nhập và đăng ký: xóa lỗi và xác nhận mật khẩu.
   function switchMode(next: Mode) {
     setMode(next);
     setFieldErrors({});
@@ -107,6 +117,35 @@ export default function LoginPage() {
       );
     } finally {
       setLoading(false);
+    }
+  }
+
+  // Đăng nhập nhanh bằng tài khoản dùng thử (POST /api/auth/dev-login).
+  async function handleDemoLogin(name: string) {
+    if (loading || demoUser !== null) return; // đang xử lý thì bỏ qua lần bấm thêm
+    setServerError("");
+    setDemoUser(name);
+    try {
+      const auth = await api.post<AuthResponse>("/api/auth/dev-login", {
+        username: name,
+      });
+      login(auth);
+      router.push(AFTER_LOGIN_PATH);
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 404) {
+        // Backend không có endpoint này: không chạy ở môi trường Development.
+        setServerError(
+          "Backend không bật đăng nhập nhanh (chỉ có ở môi trường Development). Hãy đăng nhập bằng tên tài khoản và mật khẩu.",
+        );
+      } else {
+        setServerError(
+          err instanceof ApiError
+            ? err.message
+            : "Có lỗi xảy ra. Vui lòng thử lại.",
+        );
+      }
+    } finally {
+      setDemoUser(null);
     }
   }
 
@@ -183,6 +222,30 @@ export default function LoginPage() {
               {isLogin ? "Đăng nhập" : "Tạo tài khoản"}
             </Button>
           </form>
+
+          {SHOW_DEMO_ACCOUNTS && isLogin && (
+            <div className="mt-6 border-t border-slate-200 pt-4">
+              <p className="text-sm font-medium text-slate-700">
+                Tài khoản dùng thử
+              </p>
+              <p className="mt-1 text-xs text-slate-500">
+                Chỉ hiện khi chạy chế độ phát triển. Bấm để đăng nhập nhanh,
+                không cần mật khẩu.
+              </p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {DEMO_ACCOUNTS.map((name) => (
+                  <Button
+                    key={name}
+                    variant="secondary"
+                    loading={demoUser === name}
+                    onClick={() => handleDemoLogin(name)}
+                  >
+                    {name}
+                  </Button>
+                ))}
+              </div>
+            </div>
+          )}
         </Card>
       </div>
     </PageContainer>
