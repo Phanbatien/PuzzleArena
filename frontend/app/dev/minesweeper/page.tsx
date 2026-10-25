@@ -43,7 +43,7 @@ export default function MinesweeperDevPage() {
     setCells(createStartingCells(nextSize.rows, nextSize.cols));
   };
   const resetBoard = () => setCells(createStartingCells(size.rows, size.cols));
-  const simulateLoss = () => setCells(createLostCells(size.rows, size.cols));
+  const simulateLoss = () => { setCells(createLostCells(size.rows, size.cols)); setReadOnly(true); };
   const openCell = (index: number) => setCells((current) => `${current.slice(0, index)}1${current.slice(index + 1)}`);
 
   return (

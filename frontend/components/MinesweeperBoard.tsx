@@ -142,8 +142,10 @@ export default function MinesweeperBoard({ rows, cols, mines, cells, readOnly = 
   const freshBoardKey = useMemo(() => isStartingBoard(boardCells, rows, cols) ? `${rows}x${cols}:${cells}` : null, [boardCells, cells, cols, rows]);
   const [flagState, setFlagState] = useState<{ boardKey: string | null; indices: ReadonlySet<number> }>({ boardKey: null, indices: new Set() });
   const [flagMode, setFlagMode] = useState(false);
-  const ended = boardCells.includes("*");
-  const interactive = !readOnly && !compact && !disabled && !ended;
+  // Ván kết thúc do server quyết định (status → readOnly). Không suy ra từ "*":
+  // khi khiên đỡ, cells có thể chứa "*" trong lúc lượt vẫn InProgress.
+  const ended = readOnly;
+  const interactive = !readOnly && !compact && !disabled;
   const rawFlags = flagState.boardKey === freshBoardKey || freshBoardKey === null ? flagState.indices : new Set<number>();
   const activeFlags = useMemo(() => new Set([...rawFlags].filter((index) => boardCells[index] === "#")), [boardCells, rawFlags]);
 
