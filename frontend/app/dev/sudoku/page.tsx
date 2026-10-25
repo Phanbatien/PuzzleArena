@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import SudokuBoard from "@/components/SudokuBoard";
-import type { Difficulty } from "@/types/game";
+import type { Difficulty } from "@/types/common";
 
 type Puzzle = { label: string; cells: string; solution: string };
 

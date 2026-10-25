@@ -1,82 +1,254 @@
+
 "use client";
+
 import { useEffect, useState, Suspense } from "react";
 import { useParams } from "next/navigation";
+import type { HubConnection } from "@microsoft/signalr";
 import { BoardView } from "@/types/game";
 import SudokuBoard from "@/components/SudokuBoard";
+import { api } from "@/lib/api";
+import { startConnection } from "@/lib/hub";
+
+interface FinalistMonitor {
+  userId?: number | string;
+  username: string;
+  progress: number;
+  mistakes: number;
+  status: "InProgress" | "Solved" | "Failed";
+  finishRank?: number;
+  board?: BoardView;
+}
 
 function MonitorContent() {
   const params = useParams();
   const id = params?.id as string;
-  const [boards, setBoards] = useState<Record<string, BoardView>>({});
 
-  // TẠM THỜI BỎ SIGNALR - DÙNG MOCK DATA ĐỂ TEST UI
+  const [finalists, setFinalists] = useState<FinalistMonitor[]>([]);
+  const [connected, setConnected] = useState<boolean>(false);
+
+  // Tải trạng thái ban đầu của 6 bàn chung kết và kết nối SignalR.
   useEffect(() => {
-    const interval = setInterval(() => {
-      setBoards(prev => {
-        const newBoards = { ...prev };
-        // Mô phỏng 6 tuyển thủ đang chơi
-        for (let i = 1; i <= 6; i++) {
-          const playerId = `player_${i}`;
-          
-          // Tạo chuỗi 81 số ngẫu nhiên từ 0-9 (0 là ô trống) để test UI bàn chơi
-          const fakeCells = Array.from({ length: 81 }, () => Math.floor(Math.random() * 10).toString()).join('');
-          const fakeGivens = Array.from({ length: 81 }, () => (Math.random() > 0.7 ? "1" : "0")).join('');
-          
-          newBoards[playerId] = {
-            game: "Sudoku",
-            rows: 9,
-            cols: 9,
-            mines: 0,
-            cells: fakeCells,
-            givens: fakeGivens
-          };
-        }
-        return newBoards;
-      });
-    }, 2000); // Cứ 2 giây dữ liệu nhảy 1 lần giống hệt lúc thi đấu thật
+    let active = true;
+    let connection: HubConnection | null = null;
 
-    return () => clearInterval(interval);
-  }, []);
+    type BoardPayload = {
+      userId?: number | string;
+      username?: string;
+      board: BoardView;
+      progress?: number;
+      mistakes?: number;
+      status?: "InProgress" | "Solved" | "Failed";
+      finishRank?: number;
+    };
+
+    let boardHandler:
+      | ((payload: BoardPayload) => void)
+      | undefined;
+
+    api
+      .get<FinalistMonitor[]>(`/api/tournaments/${id}/monitor`)
+      .then((data) => {
+        if (active && Array.isArray(data) && data.length > 0) {
+          setFinalists(data.slice(0, 6));
+        }
+      })
+      .catch(() => {
+        if (!active) return;
+
+        // Dữ liệu mẫu khi backend chưa bật.
+        const mockFinalists: FinalistMonitor[] = Array.from(
+          { length: 6 },
+          (_, idx) => ({
+            userId: idx + 1,
+            username: `player${idx + 1}`,
+            progress: idx === 0 ? 100 : (6 - idx) * 15,
+            mistakes: idx % 3,
+            status: idx === 0 ? "Solved" : "InProgress",
+            finishRank: idx === 0 ? 1 : undefined,
+            board: {
+              game: "Sudoku",
+              rows: 9,
+              cols: 9,
+              mines: 0,
+              cells: Array.from({ length: 81 }, (_, c) =>
+                idx === 0
+                  ? ((c % 9) + 1).toString()
+                  : Math.random() > 0.4
+                    ? ((c % 9) + 1).toString()
+                    : "0",
+              ).join(""),
+              givens: Array.from({ length: 81 }, (_, c) =>
+                c % 3 === 0 ? "1" : "0",
+              ).join(""),
+            },
+          }),
+        );
+
+        setFinalists(mockFinalists);
+      });
+
+    startConnection()
+      .then((conn) => {
+        if (!conn || !active) return;
+
+        connection = conn;
+        setConnected(true);
+
+        conn.invoke("Monitor", Number(id) || id).catch((err) => {
+          console.warn("Không thể bắt đầu giám sát SignalR:", err);
+        });
+
+        boardHandler = (payload) => {
+          if (!active) return;
+
+          setFinalists((prev) =>
+            prev.map((item) => {
+              const matched =
+                (payload.userId !== undefined &&
+                  String(item.userId) === String(payload.userId)) ||
+                (payload.username &&
+                  item.username === payload.username);
+
+              if (!matched) return item;
+
+              return {
+                ...item,
+                board: payload.board ?? item.board,
+                progress: payload.progress ?? item.progress,
+                mistakes: payload.mistakes ?? item.mistakes,
+                status: payload.status ?? item.status,
+                finishRank: payload.finishRank ?? item.finishRank,
+              };
+            }),
+          );
+        };
+
+        conn.on("board", boardHandler);
+      })
+      .catch((err) => {
+        console.warn("Không thể khởi tạo kết nối SignalR:", err);
+      });
+
+    return () => {
+      active = false;
+
+      if (connection && boardHandler) {
+        connection.off("board", boardHandler);
+      }
+    };
+  }, [id]);
+
+  const renderMedal = (rank?: number, status?: string) => {
+    if (status !== "Solved" && !rank) return null;
+
+    if (rank === 1) {
+      return (
+        <span className="px-2.5 py-1 bg-yellow-400 text-yellow-950 font-extrabold text-xs rounded-full shadow">
+          🥇 Hạng 1
+        </span>
+      );
+    }
+
+    if (rank === 2) {
+      return (
+        <span className="px-2.5 py-1 bg-slate-300 text-slate-900 font-extrabold text-xs rounded-full shadow">
+          🥈 Hạng 2
+        </span>
+      );
+    }
+
+    if (rank === 3) {
+      return (
+        <span className="px-2.5 py-1 bg-amber-600 text-amber-100 font-extrabold text-xs rounded-full shadow">
+          🥉 Hạng 3
+        </span>
+      );
+    }
+
+    return (
+      <span className="px-2.5 py-1 bg-emerald-500/20 text-emerald-300 font-bold text-xs rounded-full">
+        🏁 Hoàn thành
+      </span>
+    );
+  };
 
   return (
-    <div className="min-h-screen bg-slate-900 p-4 font-sans">
+    <div className="min-h-screen bg-slate-900 p-4 md:p-6 font-sans">
       <div className="max-w-7xl mx-auto">
-        <h1 className="text-2xl font-bold text-slate-100 flex items-center gap-3 mb-6">
-          <span className="relative flex h-5 w-5">
-            <span className="animate-ping absolute h-full w-full rounded-full bg-red-400 opacity-75"></span>
-            <span className="relative rounded-full h-5 w-5 bg-red-600"></span>
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-3">
+          <h1 className="text-2xl font-bold text-slate-100 flex items-center gap-3">
+            <span className="relative flex h-4 w-4">
+              <span className="animate-ping absolute h-full w-full rounded-full bg-red-400 opacity-75" />
+              <span className="relative rounded-full h-4 w-4 bg-red-600" />
+            </span>
+            LIVE: Màn Hình Giám Sát Chung Kết (3×2) — Giải #{id}
+          </h1>
+
+          <span className="text-xs font-mono px-3 py-1.5 rounded-lg bg-slate-800 text-slate-300 border border-slate-700">
+            {connected
+              ? "🟢 SignalR Realtime Connected"
+              : "🟡 Chế độ Mô phỏng / Chờ kết nối"}
           </span>
-          LIVE: Màn hình Giám sát Chung kết - ID Giải: {id}
-        </h1>
-        
+        </div>
+
+        {/* Lưới 3x2 hiển thị 6 bàn chơi cùng lúc */}
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-          {[1, 2, 3, 4, 5, 6].map((playerIndex) => {
-            const playerId = `player_${playerIndex}`;
-            const boardData = boards[playerId];
+          {finalists.map((player, index) => {
+            const medal = renderMedal(
+              player.finishRank ??
+                (player.status === "Solved" ? index + 1 : undefined),
+              player.status,
+            );
 
             return (
-              <div key={playerIndex} className="bg-slate-800 rounded-xl border border-slate-700 flex flex-col overflow-hidden shadow-lg">
+              <div
+                key={player.username + index}
+                className={`bg-slate-800 rounded-xl border flex flex-col overflow-hidden shadow-lg transition-all ${
+                  player.status === "Solved"
+                    ? "border-yellow-400/80 ring-2 ring-yellow-400/30"
+                    : player.status === "Failed"
+                      ? "border-red-500/60 opacity-80"
+                      : "border-slate-700"
+                }`}
+              >
+                {/* Thông tin tuyển thủ */}
                 <div className="bg-slate-950 px-4 py-3 border-b border-slate-700 flex justify-between items-center">
-                  <span className="font-bold text-slate-200">Tuyển thủ {playerIndex}</span>
-                  {boardData ? (
-                    <span className="text-xs font-mono text-green-400 bg-green-400/10 px-2 py-1 rounded">Đang thi đấu</span>
+                  <div>
+                    <span className="font-bold text-slate-100">
+                      #{index + 1} {player.username}
+                    </span>
+
+                    <span className="ml-2 text-xs font-mono text-slate-400">
+                      ({player.progress}% · {player.mistakes} lỗi)
+                    </span>
+                  </div>
+
+                  {medal ? (
+                    medal
+                  ) : player.status === "Failed" ? (
+                    <span className="text-xs font-mono text-red-400 bg-red-400/10 px-2 py-1 rounded">
+                      ❌ Quá số lỗi
+                    </span>
                   ) : (
-                    <span className="text-xs font-mono text-slate-400 bg-slate-700 px-2 py-1 rounded">Đợi...</span>
+                    <span className="text-xs font-mono text-emerald-400 bg-emerald-400/10 px-2 py-1 rounded">
+                      Đang thi đấu
+                    </span>
                   )}
                 </div>
-                
-                <div className="flex-1 flex items-center justify-center bg-slate-800 p-4 min-h-[350px]">
-                  {boardData ? (
-                    <div className="scale-[0.8] origin-top transition-all duration-300">
+
+                {/* Bàn chơi thu nhỏ, chỉ xem */}
+                <div className="flex-1 flex items-center justify-center bg-slate-800 p-3 min-h-[320px]">
+                  {player.board ? (
+                    <div className="scale-[0.78] origin-center transition-all duration-300">
                       <SudokuBoard
-                        cells={boardData.cells}
-                        givens={boardData.givens}
+                        cells={player.board.cells}
+                        givens={player.board.givens ?? ""}
                         readOnly={true}
-                      /> 
+                      />
                     </div>
                   ) : (
-                    <div className="text-slate-500 text-sm flex flex-col items-center gap-2">
-                      <svg className="animate-spin h-5 w-5 text-slate-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                    <div className="text-slate-400 text-sm">
+                      Đang chờ dữ liệu bàn chơi...
                     </div>
                   )}
                 </div>
@@ -91,7 +263,13 @@ function MonitorContent() {
 
 export default function MonitorPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-slate-900 flex items-center justify-center font-bold text-slate-400">Đang tải...</div>}>
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-slate-900 flex items-center justify-center font-bold text-slate-400">
+          Đang tải màn hình giám sát chung kết...
+        </div>
+      }
+    >
       <MonitorContent />
     </Suspense>
   );
