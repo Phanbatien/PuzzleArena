@@ -3,6 +3,7 @@ bin/
 obj/
 *.user
 .vs/
+backend/
 
 # Local SQLite database
 *.db
