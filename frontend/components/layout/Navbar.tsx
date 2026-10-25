@@ -18,24 +18,51 @@ const links: NavLink[] = [
   { href: "/leaderboard", label: "Xếp hạng", icon: "↗" },
   { href: "/daily", label: "Daily Puzzle", icon: "✦" },
   { href: "/profile", label: "Hồ sơ", icon: "◉" },
-  { href: "/admin/users", label: "Quản trị", icon: "⌘", adminOnly: true },
+  {
+    href: "/admin/users",
+    label: "Quản trị",
+    icon: "⌘",
+    adminOnly: true,
+  },
 ];
 
 export default function Navbar() {
   const pathname = usePathname();
   const router = useRouter();
   const { user, isReady, logout } = useAuth();
-  const [menuOpen, setMenuOpen] = useState(false);
 
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  // Chỉ xác nhận component đã mount sau lần render đầu tiên.
+  // Giúp server và client có cùng HTML ban đầu.
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // Đóng menu mobile khi chuyển trang.
   useEffect(() => {
     setMenuOpen(false);
   }, [pathname]);
 
+  // Chỉ sử dụng trạng thái xác thực sau khi component đã mount.
+  const authReady = mounted && isReady;
+  const currentUser = authReady ? user : null;
+
   const visibleLinks = links.filter((link) => {
-    if (link.adminOnly) return user?.role === "Admin";
+    // Trong lúc chờ xác thực, chưa hiển thị link cần quyền đặc biệt.
+    if (!authReady) {
+      return !link.adminOnly &&
+        link.href !== "/daily" &&
+        link.href !== "/profile";
+    }
+
+    if (link.adminOnly) {
+      return currentUser?.role === "Admin";
+    }
 
     if (
-      !user &&
+      !currentUser &&
       (link.href === "/daily" || link.href === "/profile")
     ) {
       return false;
@@ -87,7 +114,9 @@ export default function Navbar() {
           >
             {link.icon}
           </span>
+
           {link.label}
+
           {active && (
             <span className="ml-auto h-1.5 w-1.5 rounded-full bg-cyan-300" />
           )}
@@ -116,6 +145,7 @@ export default function Navbar() {
             <span className="block text-[17px] font-black tracking-tight text-white">
               Puzzle<span className="text-cyan-300">Arena</span>
             </span>
+
             <span className="mt-1 hidden text-[9px] font-bold uppercase tracking-[0.18em] text-slate-500 sm:block">
               Play smart. Rise higher.
             </span>
@@ -129,17 +159,20 @@ export default function Navbar() {
 
         {/* Account actions */}
         <div className="flex shrink-0 items-center gap-2">
-          {isReady && user ? (
+          {!authReady ? (
+            <span className="h-10 w-24 animate-pulse rounded-xl bg-white/5" />
+          ) : currentUser ? (
             <>
               <Link
                 href="/profile"
                 className="hidden items-center gap-2 rounded-xl border border-white/[0.08] bg-white/[0.03] px-3 py-2 transition hover:border-violet-400/30 hover:bg-violet-500/10 md:flex"
               >
                 <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-violet-500/30 to-cyan-400/20 text-sm font-black text-cyan-200">
-                  {user.username?.slice(0, 1).toUpperCase() || "P"}
+                  {currentUser.username?.slice(0, 1).toUpperCase() || "P"}
                 </span>
+
                 <span className="max-w-28 truncate text-xs font-bold text-slate-200">
-                  {user.username}
+                  {currentUser.username}
                 </span>
               </Link>
 
@@ -151,7 +184,7 @@ export default function Navbar() {
                 Đăng xuất
               </button>
             </>
-          ) : isReady ? (
+          ) : (
             <Link
               href="/login"
               className="rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 px-4 py-2.5 text-xs font-extrabold text-white shadow-lg shadow-violet-950/30 transition hover:brightness-110"
@@ -161,8 +194,6 @@ export default function Navbar() {
                 ↗
               </span>
             </Link>
-          ) : (
-            <span className="h-10 w-24 animate-pulse rounded-xl bg-white/5" />
           )}
 
           {/* Mobile menu button */}
@@ -192,13 +223,15 @@ export default function Navbar() {
 
             {renderLinks(true)}
 
-            {isReady && user && (
+            {authReady && currentUser && (
               <>
                 <div className="my-3 border-t border-white/[0.07]" />
+
                 <div className="flex items-center justify-between gap-3 px-3 py-2">
                   <span className="truncate text-sm font-semibold text-slate-300">
-                    {user.username}
+                    {currentUser.username}
                   </span>
+
                   <button
                     type="button"
                     onClick={handleLogout}

@@ -1,4 +1,3 @@
-
 "use client";
 
 import {
@@ -242,7 +241,7 @@ function TournamentDetailContent() {
           }));
         }
       } catch {
-        // Dùng dữ liệu mặc định nếu API giải đấu chưa khả dụng.
+        // Giữ dữ liệu mặc định nếu API chưa khả dụng.
       } finally {
         if (active) setIsLoading(false);
       }
@@ -253,10 +252,11 @@ function TournamentDetailContent() {
         const me = await api.get<{ role: string }>("/api/me");
 
         if (active) {
-          setIsAdmin(me?.role === "Admin");
+          setIsAdmin(
+            String(me?.role ?? "").toLowerCase() === "admin",
+          );
         }
       } catch {
-        // Không cấp quyền Admin khi chưa xác minh được tài khoản.
         if (active) setIsAdmin(false);
       }
     };
@@ -363,10 +363,7 @@ function TournamentDetailContent() {
         Math.max(0, tournament.roundMinutes || 15) * 60,
       );
     }
-  }, [
-    tournament.status,
-    tournament.roundMinutes,
-  ]);
+  }, [tournament.status, tournament.roundMinutes]);
 
   // Đếm ngược trong lúc vòng thi đang diễn ra.
   useEffect(() => {
@@ -409,7 +406,9 @@ function TournamentDetailContent() {
         showMessage("Đăng ký thành công trong chế độ Demo.");
       } else {
         showMessage(
-          err instanceof Error ? err.message : "Không thể đăng ký giải đấu.",
+          err instanceof Error
+            ? err.message
+            : "Không thể đăng ký giải đấu.",
           "error",
         );
       }
@@ -466,7 +465,6 @@ function TournamentDetailContent() {
       showMessage("Đã gửi yêu cầu chuyển vòng thi.");
     } catch (err) {
       if (err instanceof ApiError && err.status === 0) {
-        // Chỉ mô phỏng chuyển vòng khi API không khả dụng.
         const order: TournamentStatus[] = [
           "Open",
           "Qualifier",
@@ -613,14 +611,15 @@ function TournamentDetailContent() {
                   </button>
                 )}
 
-                {tournament.status === "Final" && isAdmin && (
+                {/* FIX: Admin có thể mở monitor ở mọi trạng thái giải đấu */}
+                {/* {isAdmin && ( */}
                   <Link
                     href={`/tournaments/${id}/monitor`}
                     className="rounded-xl border border-rose-400/30 bg-rose-400/10 px-5 py-3 text-sm font-bold text-rose-200 transition hover:bg-rose-400/20"
                   >
                     ◉ Màn hình giám sát
                   </Link>
-                )}
+                {/* )} */}
               </div>
             </div>
 

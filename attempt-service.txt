@@ -1,0 +1,306 @@
+﻿using Microsoft.EntityFrameworkCore;
+using PuzzleArena.Api.Boosters;
+using PuzzleArena.Api.Contracts;
+using PuzzleArena.Api.Data;
+using PuzzleArena.Api.Domain;
+using PuzzleArena.Api.Entities;
+using PuzzleArena.Api.Rating;
+
+namespace PuzzleArena.Api.Games;
+
+/// <summary>Kß║┐t quß║ú chung cß╗ºa Start/Get/Move/Abandon. Error != null th├¼ Status l├á m├ú HTTP lß╗ùi.</summary>
+public sealed record AttemptResult(
+    Attempt? Attempt,
+    string? Error = null,
+    int Status = 200,
+    bool Correct = false,
+    bool Shielded = false)
+{
+    public static AttemptResult Fail(int status, string error) => new(null, error, status);
+}
+
+/// <summary>
+/// Trß╗ìng t├ái cß╗ºa mß╗Öt l╞░ß╗út ch╞íi. Mß╗ìi quyß║┐t ─æß╗ïnh (─æ├║ng/sai, thua, hß║┐t giß╗¥, ─æ├║ng chß╗º l╞░ß╗út) nß║▒m ß╗ƒ ─æ├óy,
+/// client kh├┤ng bao giß╗¥ tß╗▒ quyß║┐t thß║»ng thua. BE3 (giß║úi ─æß║Ñu) c┼⌐ng gß╗ìi <see cref="Start"/> ─æß╗â tß║ío l╞░ß╗út.
+///
+/// MoveLog: mß╗ùi n╞░ß╗¢c mß╗Öt d├▓ng "elapsedMs|index|value|K\n" vß╗¢i K = C (─æ├║ng), W (sai, t├¡nh lß╗ùi),
+/// S (sai nh╞░ng ─æ╞░ß╗úc Khi├¬n ─æß╗í). ─Éß╗ông hß╗ô lß║Ñy tß╗½ server (elapsedMs = l├║c nhß║¡n n╞░ß╗¢c - StartedAt).
+/// </summary>
+public sealed class AttemptService(AppDb db, IBoosterService boosters, IRatingService ratings)
+{
+    public async Task<Attempt> Start(
+        int userId,
+        Puzzle puzzle,
+        int? tournamentId = null,
+        DateTimeOffset? deadline = null,
+        CancellationToken ct = default)
+    {
+        var state = GameEngine.InitialState(puzzle);
+        var attempt = new Attempt
+        {
+            UserId = userId,
+            Puzzle = puzzle,
+            TournamentId = tournamentId,
+            StartedAt = DateTimeOffset.UtcNow,
+            Deadline = deadline,
+            Status = AttemptStatus.InProgress,
+            State = state,
+            Progress = GameEngine.Progress(puzzle, state),
+            MoveLog = "",
+        };
+        db.Attempts.Add(attempt);
+        await db.SaveChangesAsync(ct);
+        return attempt;
+    }
+
+    public async Task<AttemptResult> Get(int userId, bool isAdmin, int attemptId, CancellationToken ct = default)
+    {
+        var attempt = await Load(attemptId, ct);
+        if (attempt is null)
+            return AttemptResult.Fail(StatusCodes.Status404NotFound, "Kh├┤ng t├¼m thß║Ñy l╞░ß╗út ch╞íi.");
+        if (attempt.UserId != userId && !isAdmin)
+            return AttemptResult.Fail(StatusCodes.Status403Forbidden, "─É├óy kh├┤ng phß║úi l╞░ß╗út ch╞íi cß╗ºa bß║ín.");
+
+        await ExpireIfNeeded(attempt, DateTimeOffset.UtcNow, ct);
+        return new AttemptResult(attempt);
+    }
+
+    public async Task<AttemptResult> Move(int userId, int attemptId, int index, int value, CancellationToken ct = default)
+    {
+        var attempt = await Load(attemptId, ct);
+        if (attempt is null)
+            return AttemptResult.Fail(StatusCodes.Status404NotFound, "Kh├┤ng t├¼m thß║Ñy l╞░ß╗út ch╞íi.");
+        if (attempt.UserId != userId)
+            return AttemptResult.Fail(StatusCodes.Status403Forbidden, "─É├óy kh├┤ng phß║úi l╞░ß╗út ch╞íi cß╗ºa bß║ín.");
+
+        var now = DateTimeOffset.UtcNow;
+        if (await ExpireIfNeeded(attempt, now, ct))
+            return AttemptResult.Fail(StatusCodes.Status400BadRequest, "─É├ú hß║┐t giß╗¥, l╞░ß╗út ch╞íi kß║┐t th├║c.");
+        if (attempt.Status != AttemptStatus.InProgress)
+            return AttemptResult.Fail(StatusCodes.Status400BadRequest, "L╞░ß╗út ch╞íi ─æ├ú kß║┐t th├║c.");
+
+        var puzzle = attempt.Puzzle;
+        var outcome = GameEngine.Apply(puzzle, attempt.State, index, value);
+        if (outcome is null)
+            return AttemptResult.Fail(StatusCodes.Status400BadRequest, "N╞░ß╗¢c ─æi kh├┤ng hß╗úp lß╗ç.");
+
+        long elapsed = Math.Max(0L, (long)(now - attempt.StartedAt).TotalMilliseconds);
+
+        if (outcome.Correct)
+        {
+            attempt.State = outcome.State;
+            attempt.Progress = GameEngine.Progress(puzzle, attempt.State);
+            Log(attempt, elapsed, index, value, 'C');
+
+            if (outcome.Solved)
+            {
+                attempt.Progress = 100;
+                await Finish(attempt, solved: true, at: now, ct);
+                return new AttemptResult(attempt, Correct: true);
+            }
+
+            await db.SaveChangesAsync(ct);
+            return new AttemptResult(attempt, Correct: true);
+        }
+
+        // N╞░ß╗¢c sai (Sudoku: ─æiß╗ün sai; D├▓ m├¼n: tr├║ng m├¼n).
+        // Khi├¬n: chß╗ë ngo├ái giß║úi ─æß║Ñu, ─æß╗í ─æ├║ng 1 lß╗ùi mß╗ùi l╞░ß╗út, tß╗▒ d├╣ng khi ng╞░ß╗¥i ch╞íi c├▓n Khi├¬n.
+        bool shielded = attempt.TournamentId is null
+            && !ShieldUsed(attempt)
+            && await boosters.TryConsume(attempt.UserId, BoosterType.Shield, attempt.Id, ct);
+
+        // D├▓ m├¼n: ├┤ m├¼n hiß╗çn '*' (─æ├ú lß╗Ö); Sudoku: b├án giß╗» nguy├¬n.
+        if (puzzle.GameType == GameType.Minesweeper)
+            attempt.State = outcome.State;
+
+        if (shielded)
+        {
+            Log(attempt, elapsed, index, value, 'S');
+            await db.SaveChangesAsync(ct);
+            return new AttemptResult(attempt, Correct: false, Shielded: true);
+        }
+
+        attempt.Mistakes++;
+        Log(attempt, elapsed, index, value, 'W');
+
+        if (attempt.Mistakes >= GameEngine.MaxMistakes(puzzle.GameType))
+        {
+            await Finish(attempt, solved: false, at: now, ct);
+            return new AttemptResult(attempt, Correct: false);
+        }
+
+        await db.SaveChangesAsync(ct);
+        return new AttemptResult(attempt, Correct: false);
+    }
+
+    public async Task<AttemptResult> Abandon(int userId, int attemptId, CancellationToken ct = default)
+    {
+        var attempt = await Load(attemptId, ct);
+        if (attempt is null)
+            return AttemptResult.Fail(StatusCodes.Status404NotFound, "Kh├┤ng t├¼m thß║Ñy l╞░ß╗út ch╞íi.");
+        if (attempt.UserId != userId)
+            return AttemptResult.Fail(StatusCodes.Status403Forbidden, "─É├óy kh├┤ng phß║úi l╞░ß╗út ch╞íi cß╗ºa bß║ín.");
+
+        var now = DateTimeOffset.UtcNow;
+        if (!await ExpireIfNeeded(attempt, now, ct) && attempt.Status == AttemptStatus.InProgress)
+            await Finish(attempt, solved: false, at: now, ct);
+
+        return new AttemptResult(attempt); // gß╗ìi lß║íi khi ─æ├ú kß║┐t th├║c th├¼ trß║ú nguy├¬n trß║íng th├íi (idempotent)
+    }
+
+    /// <summary>
+    /// L╞░ß╗út giß║úi xong nh╞░ng bß║Ñt th╞░ß╗¥ng (xem <see cref="CheatDetector"/>), nhanh nhß║Ñt tr╞░ß╗¢c.
+    /// Chß╗ë x├⌐t 500 l╞░ß╗út giß║úi xong gß║ºn nhß║Ñt cho nhß║╣.
+    /// </summary>
+    public async Task<List<SuspiciousAttemptResponse>> ListSuspicious(
+        GameType? game, int limit, CancellationToken ct = default)
+    {
+        IQueryable<Attempt> query = db.Attempts.AsNoTracking()
+            .Include(a => a.Puzzle)
+            .Include(a => a.User)
+            .Where(a => a.Status == AttemptStatus.Solved && a.DurationMs != null);
+        if (game is not null)
+        {
+            var g = game.Value;
+            query = query.Where(a => a.Puzzle.GameType == g);
+        }
+
+        var recent = await query.OrderByDescending(a => a.Id).Take(500).ToListAsync(ct);
+        return recent
+            .Select(a => new { Attempt = a, Reasons = CheatDetector.Analyze(a) })
+            .Where(x => x.Reasons.Count > 0)
+            .OrderBy(x => x.Attempt.DurationMs)
+            .Take(limit)
+            .Select(x => new SuspiciousAttemptResponse(
+                x.Attempt.Id,
+                x.Attempt.UserId,
+                x.Attempt.User.Username,
+                x.Attempt.Puzzle.GameType,
+                x.Attempt.Puzzle.Difficulty,
+                x.Attempt.DurationMs,
+                x.Attempt.Mistakes,
+                CheatDetector.CountMoves(x.Attempt.MoveLog),
+                x.Attempt.TournamentId,
+                x.Attempt.FinishedAt,
+                x.Reasons))
+            .ToList();
+    }
+
+    /// <summary>
+    /// Admin hß╗ºy kß║┐t quß║ú mß╗Öt l╞░ß╗út ─æ├ú giß║úi xong: ─æß║╖t th├ánh thua, ho├án lß║íi Elo, ghi d├▓ng 'V' v├áo MoveLog.
+    /// Gß╗ìi lß║íi khi ─æ├ú hß╗ºy th├¼ kh├┤ng l├ám g├¼ th├¬m. Bß╗ò trß╗ú ─æ├ú th╞░ß╗ƒng khi thß║»ng KH├öNG bß╗ï thu hß╗ôi.
+    /// </summary>
+    public async Task<AttemptResult> Void(int attemptId, CancellationToken ct = default)
+    {
+        var attempt = await Load(attemptId, ct);
+        if (attempt is null)
+            return AttemptResult.Fail(StatusCodes.Status404NotFound, "Kh├┤ng t├¼m thß║Ñy l╞░ß╗út ch╞íi.");
+
+        if (attempt.MoveLog.Contains("|V\n"))
+            return new AttemptResult(attempt);
+        if (attempt.Status != AttemptStatus.Solved)
+            return AttemptResult.Fail(StatusCodes.Status400BadRequest, "Chß╗ë hß╗ºy ─æ╞░ß╗úc l╞░ß╗út ─æ├ú giß║úi xong.");
+
+        attempt.Status = AttemptStatus.Failed;
+        attempt.MoveLog += "0|-1|0|V\n";
+
+        var rating = await db.AttemptRatings.FirstOrDefaultAsync(r => r.AttemptId == attempt.Id, ct);
+        if (rating is not null)
+        {
+            var userRating = await db.UserRatings.FirstOrDefaultAsync(
+                r => r.UserId == attempt.UserId && r.GameType == attempt.Puzzle.GameType, ct);
+            if (userRating is not null)
+                userRating.Value -= rating.Delta;
+            db.AttemptRatings.Remove(rating);
+        }
+
+        await db.SaveChangesAsync(ct);
+        return new AttemptResult(attempt);
+    }
+
+    /// <summary>
+    /// Bß║»t ─æß║ºu l╞░ß╗út ch╞íi tß╗½ mß╗Öt ─æß╗ü daily cß╗ºa H├öM NAY. Mß╗ùi ng╞░ß╗¥i chß╗ë ch╞íi mß╗ùi ─æß╗ü 1 lß║ºn:
+    /// ─æ├ú c├│ l╞░ß╗út (─æang ch╞íi, thß║»ng hay thua) th├¼ trß║ú lß║íi ─æ├║ng l╞░ß╗út ─æ├│, kh├┤ng tß║ío th├¬m.
+    /// </summary>
+    public async Task<AttemptResult> StartDaily(int userId, int puzzleId, CancellationToken ct = default)
+    {
+        var puzzle = await db.Puzzles.FirstOrDefaultAsync(p => p.Id == puzzleId && p.IsDaily, ct);
+        if (puzzle is null)
+            return AttemptResult.Fail(StatusCodes.Status404NotFound, "Kh├┤ng t├¼m thß║Ñy ─æß╗ü daily.");
+
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        if (puzzle.DailyDate != today)
+            return AttemptResult.Fail(StatusCodes.Status400BadRequest, "─Éß╗ü daily n├áy kh├┤ng phß║úi cß╗ºa h├┤m nay.");
+
+        // Lß║Ñy l╞░ß╗út mß╗¢i nhß║Ñt, c├╣ng c├ích chß╗ìn vß╗¢i GET /api/daily cß╗ºa BE1.
+        var existing = await db.Attempts.Include(a => a.Puzzle)
+            .Where(a => a.UserId == userId && a.PuzzleId == puzzleId && a.TournamentId == null)
+            .OrderByDescending(a => a.Id)
+            .FirstOrDefaultAsync(ct);
+        if (existing is not null)
+            return new AttemptResult(existing);
+
+        var attempt = await Start(userId, puzzle, ct: ct);
+        return new AttemptResult(attempt);
+    }
+
+    public async Task<AttemptResponse> ToResponse(Attempt a, CancellationToken ct = default)
+    {
+        bool finished = a.Status != AttemptStatus.InProgress;
+        int? delta = null;
+        if (finished)
+        {
+            delta = await db.AttemptRatings.AsNoTracking()
+                .Where(r => r.AttemptId == a.Id)
+                .Select(r => (int?)r.Delta)
+                .FirstOrDefaultAsync(ct);
+        }
+
+        return new AttemptResponse(
+            a.Id,
+            a.PuzzleId,
+            a.Puzzle.GameType,
+            a.Puzzle.Difficulty,
+            a.Status,
+            a.Mistakes,
+            GameEngine.MaxMistakes(a.Puzzle.GameType),
+            a.Progress,
+            a.StartedAt,
+            a.Deadline,
+            a.FinishedAt,
+            a.DurationMs,
+            DateTimeOffset.UtcNow,
+            delta,
+            GameEngine.View(a.Puzzle, a.State, finished));
+    }
+
+    // ---- nß╗Öi bß╗Ö -------------------------------------------------------------
+
+    private Task<Attempt?> Load(int attemptId, CancellationToken ct) =>
+        db.Attempts.Include(a => a.Puzzle).FirstOrDefaultAsync(a => a.Id == attemptId, ct);
+
+    // Qu├í hß║ín th├¼ thua, t├¡nh tß║íi thß╗¥i ─æiß╗âm hß║┐t hß║ín (kh├┤ng t├¡nh th├¬m thß╗¥i gian trß╗à cß╗ºa ng╞░ß╗¥i ch╞íi).
+    private async Task<bool> ExpireIfNeeded(Attempt a, DateTimeOffset now, CancellationToken ct)
+    {
+        if (a.Status != AttemptStatus.InProgress || a.Deadline is null || now <= a.Deadline)
+            return false;
+
+        await Finish(a, solved: false, at: a.Deadline.Value, ct);
+        return true;
+    }
+
+    // L╞░u trß║íng th├íi cuß╗æi TR╞»ß╗ÜC, rß╗ôi mß╗¢i cß║¡p nhß║¡t Elo (RatingService ─æß║┐m sß╗æ v├ín ─æ├ú giß║úi tß╗½ database).
+    private async Task Finish(Attempt a, bool solved, DateTimeOffset at, CancellationToken ct)
+    {
+        a.Status = solved ? AttemptStatus.Solved : AttemptStatus.Failed;
+        a.FinishedAt = at;
+        a.DurationMs = Math.Max(0L, (long)(at - a.StartedAt).TotalMilliseconds);
+        await db.SaveChangesAsync(ct);
+        await ratings.ApplyResult(a.UserId, a.Id, solved, ct); // chß╗ë t├íc dß╗Ñng vß╗¢i ─æß╗ü daily, v├ín kh├íc trß║ú null
+    }
+
+    private static void Log(Attempt a, long elapsedMs, int index, int value, char kind) =>
+        a.MoveLog += $"{elapsedMs}|{index}|{value}|{kind}\n";
+
+    private static bool ShieldUsed(Attempt a) => a.MoveLog.Contains("|S\n");
+}
