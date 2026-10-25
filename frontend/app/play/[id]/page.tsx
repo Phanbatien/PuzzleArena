@@ -1,8 +1,8 @@
 "use client";
 
-import Link from "next/link";
 import { useParams } from "next/navigation";
 import { Suspense, useEffect, useMemo, useState } from "react";
+import GameResultView from "@/components/GameResultView";
 import MinesweeperBoard from "@/components/MinesweeperBoard";
 import SudokuBoard from "@/components/SudokuBoard";
 import { formatApiError } from "@/src/lib/api/client";
@@ -67,47 +67,7 @@ function PlayAttemptContent() {
   if (finished) {
     return (
       <main className="min-h-screen bg-slate-100 px-4 py-8 text-slate-900 dark:bg-slate-950 dark:text-slate-100 sm:px-8">
-        <div className="mx-auto flex w-full max-w-lg flex-col items-center gap-6">
-          <header className="text-center">
-            <p className="text-sm font-semibold uppercase tracking-widest text-brand-700">PuzzleArena</p>
-            <h1 className="mt-1 text-3xl font-bold">{attempt.game === "Sudoku" ? "Sudoku" : "Dò mìn"}</h1>
-            <p className="mt-1 text-slate-600 dark:text-slate-400">Độ khó: {attempt.difficulty}</p>
-          </header>
-
-          <section className={`w-full rounded-2xl border p-6 text-center shadow-sm ${attempt.status === "Solved" ? "border-emerald-200 bg-emerald-50 text-emerald-950 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-100" : "border-rose-200 bg-rose-50 text-rose-950 dark:border-rose-800 dark:bg-rose-950/40 dark:text-rose-100"}`}>
-            <span className="text-4xl" aria-hidden="true">{attempt.status === "Solved" ? "🏆" : "💥"}</span>
-            <h2 className="mt-2 text-2xl font-bold">{attempt.status === "Solved" ? "Hoàn thành xuất sắc!" : "Lượt chơi đã kết thúc"}</h2>
-            <p className="mt-1 text-sm opacity-90">{attempt.status === "Solved" ? "Bạn đã giải thành công câu đố." : "Bạn đã không hoàn thành câu đố lần này."}</p>
-
-            <div className="mt-6 grid grid-cols-2 gap-3 rounded-xl bg-white/80 p-4 text-center dark:bg-slate-900/80">
-              <div>
-                <p className="text-xs font-semibold uppercase text-slate-500">Tiến độ</p>
-                <p className="mt-1 text-xl font-bold text-slate-900 dark:text-slate-100">{attempt.progress}%</p>
-              </div>
-              <div>
-                <p className="text-xs font-semibold uppercase text-slate-500">Lỗi</p>
-                <p className="mt-1 text-xl font-bold text-slate-900 dark:text-slate-100">{attempt.mistakes}/{attempt.maxMistakes}</p>
-              </div>
-              <div>
-                <p className="text-xs font-semibold uppercase text-slate-500">Thời gian</p>
-                <p className="mt-1 font-mono text-xl font-bold text-slate-900 dark:text-slate-100">{attempt.durationMs !== null ? formatDuration(attempt.durationMs) : "—"}</p>
-              </div>
-              <div>
-                <p className="text-xs font-semibold uppercase text-slate-500">Điểm Rating</p>
-                <p className="mt-1 font-mono text-xl font-bold text-slate-900 dark:text-slate-100">
-                  {attempt.ratingDelta !== null ? (attempt.ratingDelta > 0 ? `+${attempt.ratingDelta}` : `${attempt.ratingDelta}`) : "—"}
-                </p>
-              </div>
-            </div>
-          </section>
-
-          <Link
-            href="/"
-            className="inline-flex min-h-11 items-center justify-center rounded-xl bg-slate-900 px-6 font-semibold text-white transition-colors hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-white"
-          >
-            Trở về trang chủ
-          </Link>
-        </div>
+        <GameResultView attempt={attempt} />
       </main>
     );
   }
