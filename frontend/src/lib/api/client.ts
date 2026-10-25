@@ -10,7 +10,7 @@ export function formatApiError(error: unknown): string {
       case 401:
         return "Phiên đăng nhập đã hết hạn hoặc chưa đăng nhập. Vui lòng đăng nhập lại.";
       case 403:
-        return "Bạn không có quyền truy cập lượt chơi này.";
+        return "Lượt chơi này không thuộc về bạn.";
       case 404:
         return "Không tìm thấy lượt chơi hoặc đề bài.";
       default:
