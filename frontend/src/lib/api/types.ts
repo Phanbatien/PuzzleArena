@@ -19,7 +19,9 @@ export type MoveResponse = { correct: boolean; shielded: boolean; attempt: Attem
 export type PracticeRequest = { game: Game; difficulty: Difficulty };
 
 // BE2 record: MoveRequest(int Index, int Value), serialized by BE1 as camelCase.
-export type MoveRequest = { index: number; value: number };
+export type SudokuMoveRequest = { index: number; value: number };
+export type MinesweeperMoveRequest = { index: number; value: 0 };
+export type MoveRequest = SudokuMoveRequest | MinesweeperMoveRequest;
 
 
 export type SuspiciousAttemptResponse = {

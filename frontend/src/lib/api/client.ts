@@ -2,6 +2,24 @@ export class ApiError extends Error {
   constructor(public readonly status: number, message: string) { super(message); this.name = "ApiError"; }
 }
 
+export function formatApiError(error: unknown): string {
+  if (error instanceof ApiError) {
+    switch (error.status) {
+      case 400:
+        return "Nước đi không hợp lệ, lượt chơi đã kết thúc, hết giờ hoặc đề daily không phải hôm nay.";
+      case 401:
+        return "Phiên đăng nhập đã hết hạn hoặc chưa đăng nhập. Vui lòng đăng nhập lại.";
+      case 403:
+        return "Bạn không có quyền truy cập lượt chơi này.";
+      case 404:
+        return "Không tìm thấy lượt chơi hoặc đề bài.";
+      default:
+        return error.message || `Yêu cầu thất bại (mã ${error.status}).`;
+    }
+  }
+  return "Đã xảy ra lỗi không xác định.";
+}
+
 type ApiErrorPayload = { error?: unknown };
 
 export function getToken(): string | null {
