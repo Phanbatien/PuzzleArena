@@ -214,8 +214,9 @@ Không có nullable trong record; việc field JSON thiếu sẽ bind thành gi�
 ```
 
   - `correct`: `true` khi nước được game engine đánh giá đúng/an toàn; sai ở Sudoku hoặc trúng mìn là `false`.
-  - `shielded`: `true` khi nước sai được tự dùng khiên đỡ. Chỉ có thể xảy ra ngoài giải đấu, tối đa một lần trong attempt.
-  - Khiên đỡ Dò mìn: theo code, state có ô `*` đã mở trong lúc attempt còn `InProgress` (`View(..., finished: false)`), các mìn khác vẫn ẩn. Chưa được BE xác nhận — xem mục chờ xác nhận #2.
+  - `shielded`: `true` khi nước sai được tự dùng khiên đỡ (`attempt.TournamentId is null && !ShieldUsed(attempt)` tại `AttemptService.cs:106-121`). Chỉ có thể xảy ra ngoài giải đấu, tối đa một lần trong attempt.
+  - **Khiên đỡ Dò mìn (theo code hiện tại):** theo `Minesweeper.cs:83-87` và `AttemptService.cs:111`, ô dẫm trúng mìn được ghi dấu `*` vào `cells`. Tuy nhiên, vì `if (shielded)` return sớm ở `AttemptService.cs:113-121` nên `attempt.Status` vẫn là `InProgress`, `mistakes` không tăng (giữ nguyên, `maxMistakes` là 1). Khi trả về qua `AttemptService.cs:274`, vì chưa kết thúc (`finished = false`), hàm `Minesweeper.Reveal` giữ nguyên các ô mìn khác (không lộ, vẫn `#`). Response trả `{ correct: false, shielded: true, attempt }`. *(Lưu ý: đây là hành vi theo code hiện tại, chưa được BE2 xác nhận là cố ý).*
+  - **Khiên đỡ Sudoku (theo code hiện tại):** theo `AttemptService.cs:113-121`, số điền sai không được ghi vào `cells` (giữ nguyên). `attempt.Status` vẫn là `InProgress`, `mistakes` không tăng (giữ nguyên, `maxMistakes` là 3). Response trả `{ correct: false, shielded: true, attempt }`. Bằng chứng trong test: `AttemptServiceTests.cs:113-134` (`Move_Shield_AbsorbsFirstMistake_OutsideTournament_DoesNotIncreaseMistakes`).
 - **Thứ tự xử lý ở FE:** xét `shielded` trước `correct`. Khi khiên đỡ, `mistakes` không tăng; FE luôn lấy `mistakes` từ `attempt` server trả về, không tự cộng.
 - **Hết giờ:** `/move` trả 400 `"Đã hết giờ, lượt chơi kết thúc."` và lượt chuyển `Failed` → FE refetch `GET /api/attempts/{id}` để lấy `status`.
 - Lỗi:
@@ -250,49 +251,50 @@ Ngày hiện tại trong logic dùng `DateTime.UtcNow`, không phải timezone c
 
 ### `GET /api/admin/attempts/suspicious`
 
-- Auth/role: bắt buộc role `Admin`.
+- Auth/role: bắt buộc role `Admin` (`.RequireRole(nameof(Role.Admin))` tại `AdminAttemptEndpoints.cs:13`).
 - Query:
 
 | Field | Kiểu | Bắt buộc | Hành vi |
 | --- | --- | --- | --- |
-| `game` | `string` | Không | Nếu có, `Enum.TryParse<GameType>(ignoreCase: false)`; `"Sudoku"`/`"Minesweeper"` là các giá trị thấy trong code. |
+| `game` | `string` | Không | `Enum.TryParse<GameType>(ignoreCase: false)` tại `AdminAttemptEndpoints.cs:27`. **PHÂN BIỆT HOA THƯỜNG**: FE phải gửi đúng `"Sudoku"` hoặc `"Minesweeper"`; gửi sai/viết thường sẽ dính 400. |
 | `limit` | `int` | Không | Mặc định `50`; server clamp vào `1..200`. |
 
-- Thành công: HTTP 200, mảng `SuspiciousAttemptResponse`. Chỉ xét attempt `Solved` có `DurationMs`, rồi lấy tối đa 500 attempt gần nhất trước khi phân tích.
+- Thành công: HTTP 200, mảng `SuspiciousAttemptResponse`. Chỉ xét attempt `Solved` có `DurationMs`, lấy tối đa 500 attempt gần nhất trước khi phân tích.
 
-Shape dưới đây suy từ DTO theo quy tắc camelCase; chưa được BE xác nhận (mục chờ xác nhận #3).
+Shape DTO đã xác minh từ code `backend/PuzzleArena.Api/Contracts/CheatContracts.cs:6-17`:
 
 ```ts
 {
-  attemptId: number;
-  userId: number;
-  username: string;
-  game: Game;
-  difficulty: Difficulty;
-  durationMs: number | null;
-  mistakes: number;
-  moves: number;
-  tournamentId: number | null;
-  finishedAt: string | null;
-  reasons: string[];
+  attemptId: number;        // non-null int
+  userId: number;           // non-null int
+  username: string;         // non-null string
+  game: Game;               // non-null ("Sudoku" | "Minesweeper")
+  difficulty: Difficulty;   // non-null ("Easy" | "Medium" | "Hard")
+  durationMs: number | null;// nullable long
+  mistakes: number;         // non-null int
+  moves: number;            // non-null int
+  tournamentId: number | null; // nullable int
+  finishedAt: string | null;// nullable ISO string
+  reasons: string[];        // non-null string[]
 }
 ```
 
-- Lỗi thấy trong endpoint: 400 nếu `game` parse không được — `"Loại game không hợp lệ."`
-- Lỗi xác thực/role: xem mục chờ xác nhận #3.
+- Lỗi thấy trong endpoint: 400 nếu `game` parse không được — `"Loại game không hợp lệ."` (`AdminAttemptEndpoints.cs:28`).
+- Lỗi xác thực/role: 401 Unauthorized, 403 Forbidden.
 
 ### `POST /api/admin/attempts/{id}/void`
 
-- Auth/role: bắt buộc role `Admin`.
+- Auth/role: bắt buộc role `Admin` (`.RequireRole(nameof(Role.Admin))` tại `AdminAttemptEndpoints.cs:13`).
 - Path: `id: int`.
-- Body: không có.
-- Thành công: HTTP 200, `AttemptResponse`.
-  - Với attempt `Solved`, server đổi `Status` sang `Failed`, thêm marker vào move log và hoàn lại rating delta nếu có.
-  - Nếu đã void trước đó, trả attempt nguyên trạng.
+- Body: **Không có body** (`AdminAttemptEndpoints.cs:36`).
+- Thành công: HTTP 200, `AttemptResponse` (`AttemptService.cs:224`).
+  - Với attempt `Solved`, server đổi `Status` sang `Failed`, thêm marker vào move log (`0|-1|0|V\n`) và hoàn lại rating delta.
+  - Nếu đã void trước đó, hàm idempotent trả attempt nguyên trạng.
 - Lỗi:
-  - 400: attempt không có trạng thái `Solved` — `"Chỉ hủy được lượt đã giải xong."`
-  - 404: không tìm thấy lượt — `"Không tìm thấy lượt chơi."`
-- Lỗi xác thực/role: xem mục chờ xác nhận #3.
+  - 400: attempt không có trạng thái `Solved` — `"Chỉ hủy được lượt đã giải xong."` (`AttemptService.cs:202`).
+  - 404: không tìm thấy lượt — `"Không tìm thấy lượt chơi."` (`AttemptService.cs:197`).
+  - 401/403: không có quyền Admin.
+- Bằng chứng test: `CheatTests.cs:78-95` (`Void_SolvedAttempt_SetsFailedAndRevertsRating`, `Void_NotSolved_Returns400`).
 
 ## Quy tắc daily và deadline
 
@@ -363,7 +365,7 @@ export type MoveResponse = {
   attempt: AttemptResponse;
 };
 
-// Shape chờ xác nhận (mục #3).
+// Shape đã xác minh từ CheatContracts.cs.
 export type SuspiciousAttemptResponse = {
   attemptId: number;
   userId: number;
@@ -380,13 +382,15 @@ export type SuspiciousAttemptResponse = {
 
 export type ApiError = { error: string };
 
-// Chưa có trong types.ts.
-export type AuthResponse = { token: string; user: { id: number; username: string; role: "Admin" | "Player" } };
+export type Role = "Admin" | "Player";
+export type AuthUser = { id: number; username: string; role: Role };
+export type AuthResponse = { token: string; user: AuthUser };
 ```
 
 ## Còn chờ xác nhận
 
-1. Endpoint lấy `puzzleId` daily của hôm nay (hiện chỉ có `POST /api/daily/{puzzleId}/start`).
-2. Dò mìn khi khiên đỡ mìn: lượt vẫn `InProgress` và `cells` có `"*"`? Có lộ mìn khác không? `mistakes`/`maxMistakes` lúc đó thế nào?
-3. Shape `SuspiciousAttemptResponse` và quy tắc role `Admin` cho 2 API admin.
+1. `GET /api/daily`: Ai phụ trách (BE1?), request/response (chờ BE1).
+2. Ô `"*"` khi khiên đỡ mìn xuất hiện trong `cells` lúc lượt vẫn `InProgress` có phải cố ý không (chờ BE2).
+3. Cách cấp role Admin và tài khoản thử ở môi trường dev (chờ BE1).
 4. Key lưu token và ai xử lý 401 (chờ FE1).
+5. Snapshot `backend/` có phải bản mới nhất không (chờ xác nhận từ BE).

@@ -1,67 +1,156 @@
-import Image from "next/image";
+"use client";
+
+import Link from "next/link";
+import { useAuthToken, useCurrentUser } from "@/src/lib/api/auth";
 
 export default function Home() {
+  const token = useAuthToken();
+  const user = useCurrentUser();
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert h-5 w-[100px]"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the{" "}
-            <code className="rounded bg-black/[.06] px-1.5 py-0.5 font-mono text-[0.9em] dark:bg-white/[.08]">
-              page.tsx
-            </code>{" "}
-            file.
+    <div className="min-h-screen bg-slate-100 font-sans text-slate-900 dark:bg-slate-950 dark:text-slate-100">
+      {/* Top Navbar */}
+      <header className="border-b border-slate-200 bg-white/80 backdrop-blur-md dark:border-slate-800 dark:bg-slate-900/80 sticky top-0 z-10">
+        <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3.5 sm:px-6">
+          <div className="flex items-center gap-2">
+            <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-brand-600 text-white font-black text-sm shadow">
+              PA
+            </span>
+            <span className="text-xl font-extrabold tracking-tight">PuzzleArena</span>
+          </div>
+
+          <div className="flex items-center gap-3">
+            {token ? (
+              <div className="flex items-center gap-2">
+                <span className="flex h-2.5 w-2.5 rounded-full bg-emerald-500" />
+                <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                  {user?.username ?? "Đã đăng nhập"}
+                </span>
+                {user?.role === "Admin" && (
+                  <span className="rounded bg-rose-100 px-1.5 py-0.5 text-[10px] font-bold text-rose-700 dark:bg-rose-950 dark:text-rose-300">
+                    ADMIN
+                  </span>
+                )}
+                <Link
+                  href="/login"
+                  className="ml-2 rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-medium hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800"
+                >
+                  Tài khoản
+                </Link>
+              </div>
+            ) : (
+              <Link
+                href="/login"
+                className="rounded-xl bg-slate-900 px-3.5 py-1.5 text-xs font-bold text-white shadow hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-900"
+              >
+                Đăng nhập / Token
+              </Link>
+            )}
+          </div>
+        </div>
+      </header>
+
+      {/* Hero Section */}
+      <main className="mx-auto flex max-w-5xl flex-col items-center px-4 py-12 sm:px-6">
+        <div className="text-center">
+          <span className="inline-block rounded-full bg-brand-50 px-3.5 py-1 text-xs font-bold text-brand-700 dark:bg-brand-950/70 dark:text-brand-300">
+            Đấu trường giải đố thông minh & chống gian lận
+          </span>
+          <h1 className="mt-4 text-4xl font-extrabold tracking-tight sm:text-5xl">
+            Thử thách trí tuệ với <br className="hidden sm:inline" />
+            <span className="bg-gradient-to-r from-brand-600 to-indigo-600 bg-clip-text text-transparent">
+              Sudoku & Dò mìn đỉnh cao
+            </span>
           </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
+          <p className="mx-auto mt-4 max-w-2xl text-base text-slate-600 dark:text-slate-400">
+            Hệ thống giải đố trực tuyến hỗ trợ khiên bảo vệ, tính điểm chuẩn xác, chống gian lận và
+            đếm ngược đồng bộ chuẩn thời gian thực với server.
           </p>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+
+        {/* Feature Cards Grid */}
+        <div className="mt-12 grid w-full grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+          {/* Practice Card */}
+          <Link
+            href="/practice"
+            className="group flex flex-col justify-between rounded-2xl border border-slate-200 bg-white p-6 shadow-sm transition-all hover:-translate-y-1 hover:border-brand-500 hover:shadow-md dark:border-slate-800 dark:bg-slate-900"
           >
-            <Image
-              className="dark:invert h-[14px] w-4"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+            <div>
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-brand-50 text-2xl text-brand-600 dark:bg-brand-950">
+                🎯
+              </div>
+              <h2 className="mt-4 text-lg font-bold text-slate-900 dark:text-slate-100 group-hover:text-brand-600">
+                Chế độ Luyện tập
+              </h2>
+              <p className="mt-2 text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
+                Tự do chọn trò chơi (Sudoku 9×9 hoặc Dò mìn) cùng độ khó Dễ, Trung bình, Khó. Luyện
+                tay không giới hạn thời gian.
+              </p>
+            </div>
+            <div className="mt-6 flex items-center gap-1 text-sm font-bold text-brand-600 dark:text-brand-400">
+              Vào luyện tập ngay <span>→</span>
+            </div>
+          </Link>
+
+          {/* Daily Card */}
+          <Link
+            href="/daily"
+            className="group flex flex-col justify-between rounded-2xl border border-slate-200 bg-white p-6 shadow-sm transition-all hover:-translate-y-1 hover:border-amber-500 hover:shadow-md dark:border-slate-800 dark:bg-slate-900"
           >
-            Documentation
-          </a>
+            <div>
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-amber-50 text-2xl text-amber-600 dark:bg-amber-950">
+                📅
+              </div>
+              <h2 className="mt-4 text-lg font-bold text-slate-900 dark:text-slate-100 group-hover:text-amber-600">
+                Thử thách hàng ngày
+              </h2>
+              <p className="mt-2 text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
+                Mỗi ngày 1 bộ đề duy nhất. 1 cơ hội duy nhất cho mỗi tài khoản để tranh tài và lưu
+                thành tích cao nhất.
+              </p>
+            </div>
+            <div className="mt-6 flex items-center gap-1 text-sm font-bold text-amber-600 dark:text-amber-400">
+              Chơi Daily hôm nay <span>→</span>
+            </div>
+          </Link>
+
+          {/* Admin Anti-Cheat Card */}
+          <Link
+            href="/admin"
+            className="group flex flex-col justify-between rounded-2xl border border-slate-200 bg-white p-6 shadow-sm transition-all hover:-translate-y-1 hover:border-rose-500 hover:shadow-md dark:border-slate-800 dark:bg-slate-900"
+          >
+            <div>
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-rose-50 text-2xl text-rose-600 dark:bg-rose-950">
+                🛡️
+              </div>
+              <h2 className="mt-4 text-lg font-bold text-slate-900 dark:text-slate-100 group-hover:text-rose-600">
+                Quản trị chống gian lận
+              </h2>
+              <p className="mt-2 text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
+                Dành cho Admin: Lọc và kiểm tra các lượt giải có thời gian bất thường, xem cờ cảnh
+                báo và hủy kết quả gian lận.
+              </p>
+            </div>
+            <div className="mt-6 flex items-center gap-1 text-sm font-bold text-rose-600 dark:text-rose-400">
+              Mở trang Admin <span>→</span>
+            </div>
+          </Link>
+        </div>
+
+        {/* Dev Quicklinks */}
+        <div className="mt-12 flex flex-wrap items-center justify-center gap-4 text-xs text-slate-500">
+          <span>Khám phá bàn cờ mẫu:</span>
+          <Link href="/dev/sudoku" className="hover:text-slate-800 dark:hover:text-slate-300 underline">
+            Mẫu Sudoku
+          </Link>
+          <span>·</span>
+          <Link href="/dev/minesweeper" className="hover:text-slate-800 dark:hover:text-slate-300 underline">
+            Mẫu Dò mìn
+          </Link>
+          <span>·</span>
+          <Link href="/login" className="hover:text-slate-800 dark:hover:text-slate-300 underline">
+            Đăng nhập / Đổi Token
+          </Link>
         </div>
       </main>
     </div>

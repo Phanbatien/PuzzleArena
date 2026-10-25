@@ -1,9 +1,10 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { getSuspiciousAttempts, voidAttempt } from "./admin";
 import { abandonAttempt, getAttempt, moveAttempt, startPractice } from "./attempts";
 import { startDaily } from "./daily";
-import type { AttemptResponse, MoveRequest, PracticeRequest } from "./types";
+import type { AttemptResponse, Game, MoveRequest, PracticeRequest } from "./types";
 
 const attemptKey = (id: number) => ["attempt", id] as const;
 export type TimedAttemptResponse = AttemptResponse & { clientReceivedAt: number };
@@ -42,4 +43,22 @@ export function useAbandon(id: number) {
 
 export function useStartDaily() {
   return useMutation({ mutationFn: (puzzleId: number) => startDaily(puzzleId) });
+}
+
+export function useSuspiciousAttempts(game?: Game, limit?: number) {
+  return useQuery({
+    queryKey: ["admin", "suspicious", game ?? "all", limit ?? 50] as const,
+    queryFn: () => getSuspiciousAttempts(game, limit),
+  });
+}
+
+export function useVoidAttempt() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => voidAttempt(id),
+    onSuccess: (attempt) => {
+      queryClient.setQueryData<AttemptResponse>(attemptKey(attempt.id), attempt);
+      queryClient.invalidateQueries({ queryKey: ["admin", "suspicious"] });
+    },
+  });
 }

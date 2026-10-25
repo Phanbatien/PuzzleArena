@@ -29,3 +29,21 @@ export type SuspiciousAttemptResponse = {
   durationMs: number | null; mistakes: number; moves: number; tournamentId: number | null;
   finishedAt: string | null; reasons: string[];
 };
+
+export type Role = "Admin" | "Player";
+
+export type AuthUser = {
+  id: number;
+  username: string;
+  role: Role;
+};
+
+export type AuthResponse = {
+  token: string;
+  user: AuthUser;
+};
+
+export type LoginRequest = {
+  username: string;
+  password?: string;
+};
