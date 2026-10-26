@@ -11,10 +11,10 @@ type DailyCardProps = {
   puzzle: DailyPuzzle;
 };
 
-// GIẢ ĐỊNH (BE2 nói response là AttemptResponse có trường id = attemptId,
-// nhưng chưa nói id là số hay chuỗi). Nên cho phép cả hai.
+// ĐÃ THẤY khi gọi thật POST /api/daily/{id}/start: id của lượt chơi là SỐ (Int32).
+// Ta chỉ cần id để chuyển sang /play/{id}, các trường khác của AttemptResponse không dùng ở đây.
 type StartResponse = {
-  id: number | string;
+  id: number;
 };
 
 // Tên game hiển thị bằng tiếng Việt
