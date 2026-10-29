@@ -3,9 +3,9 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { ApiError } from "@/src/lib/api/client";
-import { useStartPractice } from "@/src/lib/api/hooks";
-import type { Difficulty, Game } from "@/src/lib/api/types";
+import { ApiError } from "@/lib/api";
+import { useStartPractice } from "@/lib/hooks";
+import type { Difficulty, Game } from "@/types/game";
 
 function getPracticeErrorMessage(error: unknown): string {
   if (error instanceof ApiError) {
@@ -15,28 +15,41 @@ function getPracticeErrorMessage(error: unknown): string {
       case 401:
         return "Phiên đăng nhập đã hết hạn hoặc chưa đăng nhập. Vui lòng đăng nhập lại.";
       default:
-        return error.message || `Đã xảy ra lỗi khi tạo lượt chơi (mã ${error.status}).`;
+        return (
+          error.message || `Đã xảy ra lỗi khi tạo lượt chơi (mã ${error.status}).`
+        );
     }
   }
   return "Không thể kết nối đến máy chủ. Vui lòng thử lại sau.";
 }
 
-const GAME_OPTIONS: { value: Game; label: string; description: string; icon: string }[] = [
+const GAME_OPTIONS: {
+  value: Game;
+  label: string;
+  description: string;
+  icon: string;
+}[] = [
   {
     value: "Sudoku",
     label: "Sudoku",
-    description: "Điền các chữ số 1–9 vào lưới 9×9 sao cho mỗi hàng, cột và khối không lặp lại.",
+    description:
+      "Điền các chữ số 1–9 vào lưới 9×9 sao cho mỗi hàng, cột và khối không lặp lại.",
     icon: "🔢",
   },
   {
     value: "Minesweeper",
     label: "Dò mìn",
-    description: "Mở các ô an toàn và gắn cờ những vị trí có mìn ẩn dựa vào số gợi ý.",
+    description:
+      "Mở các ô an toàn và gắn cờ những vị trí có mìn ẩn dựa vào số gợi ý.",
     icon: "💣",
   },
 ];
 
-const DIFFICULTY_OPTIONS: { value: Difficulty; label: string; details: Record<Game, string> }[] = [
+const DIFFICULTY_OPTIONS: {
+  value: Difficulty;
+  label: string;
+  details: Record<Game, string>;
+}[] = [
   {
     value: "Easy",
     label: "Dễ",
@@ -80,7 +93,9 @@ export default function PracticePage() {
     }
   };
 
-  const selectedDiffInfo = DIFFICULTY_OPTIONS.find((d) => d.value === difficulty)?.details[game];
+  const selectedDiffInfo = DIFFICULTY_OPTIONS.find(
+    (d) => d.value === difficulty,
+  )?.details[game];
 
   return (
     <main className="min-h-screen bg-slate-100 px-4 py-10 text-slate-900 dark:bg-slate-950 dark:text-slate-100 sm:px-8">
@@ -92,7 +107,9 @@ export default function PracticePage() {
           >
             ← PuzzleArena
           </Link>
-          <h1 className="mt-2 text-3xl font-extrabold sm:text-4xl">Luyện tập</h1>
+          <h1 className="mt-2 text-3xl font-extrabold sm:text-4xl">
+            Luyện tập
+          </h1>
           <p className="mt-2 text-slate-600 dark:text-slate-400">
             Chọn trò chơi và độ khó để bắt đầu lượt chơi luyện tập mới
           </p>
@@ -104,7 +121,11 @@ export default function PracticePage() {
             <h2 className="text-sm font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400">
               1. Chọn trò chơi
             </h2>
-            <div className="grid grid-cols-2 gap-3" role="radiogroup" aria-label="Chọn trò chơi">
+            <div
+              className="grid grid-cols-2 gap-3"
+              role="radiogroup"
+              aria-label="Chọn trò chơi"
+            >
               {GAME_OPTIONS.map((item) => {
                 const selected = game === item.value;
                 return (
@@ -141,7 +162,11 @@ export default function PracticePage() {
             <h2 className="text-sm font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400">
               2. Chọn độ khó
             </h2>
-            <div className="grid grid-cols-3 gap-3" role="radiogroup" aria-label="Chọn độ khó">
+            <div
+              className="grid grid-cols-3 gap-3"
+              role="radiogroup"
+              aria-label="Chọn độ khó"
+            >
               {DIFFICULTY_OPTIONS.map((item) => {
                 const selected = difficulty === item.value;
                 return (
@@ -186,7 +211,9 @@ export default function PracticePage() {
             disabled={startPractice.isPending}
             className="flex min-h-12 w-full items-center justify-center rounded-xl bg-slate-900 px-6 font-bold text-white shadow transition-all hover:bg-slate-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-900 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-white"
           >
-            {startPractice.isPending ? "Đang tạo lượt chơi…" : "Bắt đầu chơi"}
+            {startPractice.isPending
+              ? "Đang tạo lượt chơi…"
+              : "Bắt đầu chơi"}
           </button>
         </form>
       </div>

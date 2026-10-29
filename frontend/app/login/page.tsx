@@ -1,303 +1,253 @@
 "use client";
 
-import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { clearAuth, login, register, saveAuth, useAuthToken, useCurrentUser } from "@/src/lib/api/auth";
-import { ApiError } from "@/src/lib/api/client";
-import type { AuthUser, Role } from "@/src/lib/api/types";
+import type { FormEvent } from "react";
+import { useRouter } from "next/navigation";
+import PageContainer from "@/components/layout/PageContainer";
+import Card from "@/components/ui/Card";
+import Input from "@/components/ui/Input";
+import Button from "@/components/ui/Button";
+import ErrorMessage from "@/components/ui/ErrorMessage";
+import { api, ApiError } from "@/lib/api";
+import { useAuth } from "@/components/auth/AuthProvider";
+import type { AuthResponse, LoginRequest, RegisterRequest } from "@/types/auth";
+
+type Mode = "login" | "register";
+
+// Trang đến sau khi đăng nhập hoặc đăng ký thành công.
+const AFTER_LOGIN_PATH = "/daily";
+
+// Tài khoản dùng thử (do backend seed sẵn). Chỉ có tên, KHÔNG có mật khẩu:
+// dev-login của backend không cần mật khẩu và chỉ tồn tại ở môi trường Development.
+const DEMO_ACCOUNTS = ["admin", "player1", "player2"];
+
+// Next.js thay giá trị này lúc build: khi chạy npm run dev là "development",
+// còn bản build production thì khối dùng thử không được hiển thị.
+const SHOW_DEMO_ACCOUNTS = process.env.NODE_ENV === "development";
+
+type FieldErrors = {
+  username?: string;
+  email?: string;
+  password?: string;
+  confirm?: string;
+};
 
 export default function LoginPage() {
   const router = useRouter();
-  const [mode, setMode] = useState<"login" | "register" | "directToken">("login");
+  const { login } = useAuth();
+
+  const [mode, setMode] = useState<Mode>("login");
   const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [manualToken, setManualToken] = useState("");
-  const [manualRole, setManualRole] = useState<Role>("Player");
+  const [confirm, setConfirm] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
+  const [serverError, setServerError] = useState("");
+  const [loading, setLoading] = useState(false);
+  // Tên tài khoản dùng thử đang được đăng nhập (null nếu không có).
+  const [demoUser, setDemoUser] = useState<string | null>(null);
 
-  const currentToken = useAuthToken();
-  const currentUser = useCurrentUser();
+  // Đổi giữa đăng nhập và đăng ký: xóa lỗi và xác nhận mật khẩu.
+  function switchMode(next: Mode) {
+    setMode(next);
+    setFieldErrors({});
+    setServerError("");
+    setConfirm("");
+  }
 
-  const [isLoading, setIsLoading] = useState(false);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
-
-  const handleAuthSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setErrorMessage(null);
-    setSuccessMessage(null);
-    setIsLoading(true);
-
-    try {
-      if (mode === "login") {
-        const res = await login({ username, password });
-        setSuccessMessage(`Đăng nhập thành công với tài khoản ${res.user.username} (${res.user.role})!`);
-      } else {
-        const res = await register({ username, password });
-        setSuccessMessage(`Đăng ký thành công với tài khoản ${res.user.username} (${res.user.role})!`);
+  // Kiểm tra cơ bản ở frontend để người dùng biết lỗi ngay.
+  // Luật chi tiết (độ dài tối thiểu, ký tự cho phép...) do backend quyết định
+  // và backend trả lỗi dạng { error: "..." }, nên ở đây chỉ kiểm tra rỗng,
+  // email có dấu "@" và xác nhận mật khẩu.
+  function validate(): FieldErrors {
+    const errors: FieldErrors = {};
+    if (username.trim() === "") {
+      errors.username = "Vui lòng nhập tên tài khoản.";
+    }
+    if (mode === "register") {
+      if (email.trim() === "") {
+        errors.email = "Vui lòng nhập email.";
+      } else if (!email.includes("@")) {
+        errors.email = "Email không hợp lệ.";
       }
-      setTimeout(() => router.push("/"), 1200);
-    } catch (err) {
-      if (err instanceof ApiError) {
-        setErrorMessage(err.message || `Lỗi đăng nhập/đăng ký (mã ${err.status}).`);
+    }
+    if (password === "") {
+      errors.password = "Vui lòng nhập mật khẩu.";
+    }
+    if (mode === "register" && password !== "" && confirm !== password) {
+      errors.confirm = "Mật khẩu xác nhận không khớp.";
+    }
+    return errors;
+  }
+
+  async function handleSubmit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault(); // không cho trình duyệt tải lại trang khi bấm gửi
+    setServerError("");
+
+    const errors = validate();
+    setFieldErrors(errors);
+    if (Object.keys(errors).length > 0) return;
+
+    setLoading(true);
+    try {
+      let auth: AuthResponse;
+      if (mode === "login") {
+        // BE1 đã xác nhận: login chỉ cần { username, password }.
+        const body: LoginRequest = {
+          username: username.trim(),
+          password,
+        };
+        auth = await api.post<AuthResponse>("/api/auth/login", body);
       } else {
-        setErrorMessage("Không thể kết nối đến máy chủ xác thực.");
+        // BE1 đã xác nhận: register cần { username, email, password }.
+        const body: RegisterRequest = {
+          username: username.trim(),
+          email: email.trim(),
+          password,
+        };
+        auth = await api.post<AuthResponse>("/api/auth/register", body);
+      }
+      login(auth); // lưu token + user, cả app cập nhật
+      router.push(AFTER_LOGIN_PATH);
+    } catch (err) {
+      setServerError(
+        err instanceof ApiError
+          ? err.message
+          : "Có lỗi xảy ra. Vui lòng thử lại.",
+      );
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // Đăng nhập nhanh bằng tài khoản dùng thử (POST /api/auth/dev-login).
+  async function handleDemoLogin(name: string) {
+    if (loading || demoUser !== null) return; // đang xử lý thì bỏ qua lần bấm thêm
+    setServerError("");
+    setDemoUser(name);
+    try {
+      const auth = await api.post<AuthResponse>("/api/auth/dev-login", {
+        username: name,
+      });
+      login(auth);
+      router.push(AFTER_LOGIN_PATH);
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 404) {
+        // Backend không có endpoint này: không chạy ở môi trường Development.
+        setServerError(
+          "Backend không bật đăng nhập nhanh (chỉ có ở môi trường Development). Hãy đăng nhập bằng tên tài khoản và mật khẩu.",
+        );
+      } else {
+        setServerError(
+          err instanceof ApiError
+            ? err.message
+            : "Có lỗi xảy ra. Vui lòng thử lại.",
+        );
       }
     } finally {
-      setIsLoading(false);
+      setDemoUser(null);
     }
-  };
+  }
 
-  const handleSaveManualToken = (e: React.FormEvent) => {
-    e.preventDefault();
-    const token = manualToken.trim();
-    if (!token) return;
-
-    const mockUser: AuthUser = {
-      id: 999,
-      username: username.trim() || (manualRole === "Admin" ? "admin_dev" : "player_dev"),
-      role: manualRole,
-    };
-    saveAuth(token, mockUser);
-    setSuccessMessage(`Đã lưu token thành công với role ${manualRole}!`);
-  };
-
-  const handleLogout = () => {
-    clearAuth();
-    setSuccessMessage("Đã đăng xuất tài khoản.");
-  };
+  const isLogin = mode === "login";
 
   return (
-    <main className="min-h-screen bg-slate-100 px-4 py-10 text-slate-900 dark:bg-slate-950 dark:text-slate-100 sm:px-8">
-      <div className="mx-auto flex w-full max-w-md flex-col items-center gap-6">
-        <header className="text-center">
-          <Link
-            href="/"
-            className="text-sm font-semibold uppercase tracking-widest text-brand-700 hover:underline"
-          >
-            ← PuzzleArena
-          </Link>
-          <h1 className="mt-2 text-3xl font-extrabold sm:text-4xl">Tài khoản & Xác thực</h1>
-          <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
-            Đăng nhập để lưu tiến độ, xếp hạng rating và quản lý các lượt chơi
-          </p>
-        </header>
-
-        {/* Current Auth Status Card */}
-        {currentToken ? (
-          <div className="w-full rounded-2xl border border-emerald-200 bg-white p-5 shadow-sm dark:border-emerald-900 dark:bg-slate-900">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className="flex h-3 w-3 rounded-full bg-emerald-500 animate-pulse" />
-                <span className="text-sm font-bold text-slate-900 dark:text-slate-100">
-                  Đã đăng nhập
-                </span>
-              </div>
-              <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-bold text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
-                {currentUser?.role ?? "Player"}
-              </span>
-            </div>
-
-            <div className="mt-3 text-xs text-slate-600 dark:text-slate-400">
-              <p>
-                Người dùng: <strong>{currentUser?.username ?? "Chưa rõ"}</strong>
-              </p>
-              <p className="mt-1 font-mono truncate text-[11px] text-slate-500">
-                Token: {currentToken.slice(0, 16)}...{currentToken.slice(-10)}
-              </p>
-            </div>
-
-            <div className="mt-4 flex gap-2">
-              <button
-                type="button"
-                onClick={handleLogout}
-                className="rounded-lg bg-rose-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-rose-700"
-              >
-                Đăng xuất
-              </button>
-              <Link
-                href="/practice"
-                className="rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-bold text-white hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-900"
-              >
-                Vào chơi ngay →
-              </Link>
-            </div>
+    <PageContainer
+      title={isLogin ? "Đăng nhập" : "Đăng ký"}
+      description="Đăng nhập để chơi Daily Puzzle và theo dõi xếp hạng."
+    >
+      <div className="mx-auto max-w-md">
+        <Card>
+          <div className="mb-4 flex gap-2">
+            <Button
+              variant={isLogin ? "primary" : "secondary"}
+              onClick={() => switchMode("login")}
+              className="flex-1"
+            >
+              Đăng nhập
+            </Button>
+            <Button
+              variant={isLogin ? "secondary" : "primary"}
+              onClick={() => switchMode("register")}
+              className="flex-1"
+            >
+              Đăng ký
+            </Button>
           </div>
-        ) : null}
 
-        {/* Feedback message */}
-        {successMessage && (
-          <div
-            role="status"
-            className="w-full rounded-xl border border-emerald-300 bg-emerald-50 p-4 text-sm font-medium text-emerald-900 dark:border-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-200"
-          >
-            {successMessage}
-          </div>
-        )}
-        {errorMessage && (
-          <div
-            role="alert"
-            className="w-full rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm font-medium text-rose-800 dark:border-rose-900 dark:bg-rose-950/60 dark:text-rose-200"
-          >
-            {errorMessage}
-          </div>
-        )}
-
-        {/* Mode Selector Tabs */}
-        <div className="grid w-full grid-cols-3 rounded-xl border border-slate-200 bg-white p-1 text-center text-xs font-bold shadow-sm dark:border-slate-800 dark:bg-slate-900">
-          <button
-            type="button"
-            onClick={() => setMode("login")}
-            className={`rounded-lg py-2 transition-all ${
-              mode === "login"
-                ? "bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900"
-                : "text-slate-600 hover:text-slate-900 dark:text-slate-400"
-            }`}
-          >
-            Đăng nhập
-          </button>
-          <button
-            type="button"
-            onClick={() => setMode("register")}
-            className={`rounded-lg py-2 transition-all ${
-              mode === "register"
-                ? "bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900"
-                : "text-slate-600 hover:text-slate-900 dark:text-slate-400"
-            }`}
-          >
-            Đăng ký
-          </button>
-          <button
-            type="button"
-            onClick={() => setMode("directToken")}
-            className={`rounded-lg py-2 transition-all ${
-              mode === "directToken"
-                ? "bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900"
-                : "text-slate-600 hover:text-slate-900 dark:text-slate-400"
-            }`}
-          >
-            Dev Token
-          </button>
-        </div>
-
-        {/* Auth Forms */}
-        {mode !== "directToken" ? (
-          <form
-            onSubmit={handleAuthSubmit}
-            className="w-full space-y-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900"
-          >
-            <div>
-              <label
-                htmlFor="usernameInput"
-                className="block text-sm font-semibold text-slate-700 dark:text-slate-300"
-              >
-                Tên đăng nhập (Username)
-              </label>
-              <input
-                id="usernameInput"
-                type="text"
-                required
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                disabled={isLoading}
-                className="mt-1 block w-full rounded-xl border border-slate-300 bg-slate-50 px-4 py-2.5 text-sm text-slate-900 focus:border-brand-600 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-600/30 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
-                placeholder="Ví dụ: player1"
+          <form onSubmit={handleSubmit} className="space-y-4" noValidate>
+            <Input
+              label="Tên tài khoản"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              error={fieldErrors.username}
+              autoComplete="username"
+              disabled={loading}
+            />
+            {!isLogin && (
+              <Input
+                label="Email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                error={fieldErrors.email}
+                autoComplete="email"
+                disabled={loading}
               />
-            </div>
-
-            <div>
-              <label
-                htmlFor="passwordInput"
-                className="block text-sm font-semibold text-slate-700 dark:text-slate-300"
-              >
-                Mật khẩu
-              </label>
-              <input
-                id="passwordInput"
+            )}
+            <Input
+              label="Mật khẩu"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              error={fieldErrors.password}
+              autoComplete={isLogin ? "current-password" : "new-password"}
+              disabled={loading}
+            />
+            {!isLogin && (
+              <Input
+                label="Xác nhận mật khẩu"
                 type="password"
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                disabled={isLoading}
-                className="mt-1 block w-full rounded-xl border border-slate-300 bg-slate-50 px-4 py-2.5 text-sm text-slate-900 focus:border-brand-600 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-600/30 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
-                placeholder="••••••••"
+                value={confirm}
+                onChange={(e) => setConfirm(e.target.value)}
+                error={fieldErrors.confirm}
+                autoComplete="new-password"
+                disabled={loading}
               />
-            </div>
+            )}
 
-            <button
-              type="submit"
-              disabled={isLoading}
-              className="flex min-h-12 w-full items-center justify-center rounded-xl bg-slate-900 px-6 font-bold text-white shadow transition-all hover:bg-slate-800 disabled:opacity-60 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-white"
-            >
-              {isLoading
-                ? "Đang xử lý…"
-                : mode === "login"
-                ? "Đăng nhập"
-                : "Đăng ký tài khoản"}
-            </button>
+            {serverError && <ErrorMessage message={serverError} />}
+
+            <Button type="submit" loading={loading} className="w-full">
+              {isLogin ? "Đăng nhập" : "Tạo tài khoản"}
+            </Button>
           </form>
-        ) : (
-          <form
-            onSubmit={handleSaveManualToken}
-            className="w-full space-y-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900"
-          >
-            <div>
-              <label
-                htmlFor="directTokenInput"
-                className="block text-sm font-semibold text-slate-700 dark:text-slate-300"
-              >
-                Nhập JWT Token trực tiếp (Dành cho Dev/Test)
-              </label>
-              <textarea
-                id="directTokenInput"
-                required
-                rows={3}
-                value={manualToken}
-                onChange={(e) => setManualToken(e.target.value)}
-                className="mt-1 block w-full rounded-xl border border-slate-300 bg-slate-50 p-3 font-mono text-xs text-slate-900 focus:border-brand-600 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-600/30 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
-                placeholder="Dán mã Bearer JWT token từ backend hoặc Swagger vào đây..."
-              />
-            </div>
 
-            <div className="flex items-center gap-4">
-              <label className="text-xs font-bold uppercase text-slate-600 dark:text-slate-400">
-                Role gán cho token:
-              </label>
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => setManualRole("Player")}
-                  className={`rounded-lg px-2.5 py-1 text-xs font-bold ${
-                    manualRole === "Player"
-                      ? "bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900"
-                      : "bg-slate-100 text-slate-600 dark:bg-slate-800"
-                  }`}
-                >
-                  Player
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setManualRole("Admin")}
-                  className={`rounded-lg px-2.5 py-1 text-xs font-bold ${
-                    manualRole === "Admin"
-                      ? "bg-rose-600 text-white"
-                      : "bg-slate-100 text-slate-600 dark:bg-slate-800"
-                  }`}
-                >
-                  Admin
-                </button>
+          {SHOW_DEMO_ACCOUNTS && isLogin && (
+            <div className="mt-6 border-t border-slate-200 pt-4">
+              <p className="text-sm font-medium text-slate-700">
+                Tài khoản dùng thử
+              </p>
+              <p className="mt-1 text-xs text-slate-500">
+                Chỉ hiện khi chạy chế độ phát triển. Bấm để đăng nhập nhanh,
+                không cần mật khẩu.
+              </p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {DEMO_ACCOUNTS.map((name) => (
+                  <Button
+                    key={name}
+                    variant="secondary"
+                    loading={demoUser === name}
+                    onClick={() => handleDemoLogin(name)}
+                  >
+                    {name}
+                  </Button>
+                ))}
               </div>
             </div>
-
-            <button
-              type="submit"
-              className="flex min-h-11 w-full items-center justify-center rounded-xl bg-slate-900 px-6 font-bold text-white shadow transition-all hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-white"
-            >
-              Lưu token vào LocalStorage
-            </button>
-          </form>
-        )}
+          )}
+        </Card>
       </div>
-    </main>
+    </PageContainer>
   );
 }

@@ -1,11 +1,21 @@
 import { describe, expect, it } from "vitest";
 import { mapAttemptToBoard } from "./mapAttempt";
-import type { AttemptResponse } from "@/src/lib/api/types";
+import type { AttemptResponse } from "@/types/game";
 
 const shared = {
-  id: 1, puzzleId: 2, difficulty: "Easy" as const, status: "InProgress" as const,
-  mistakes: 0, maxMistakes: 3, progress: 0, startedAt: "2026-10-24T00:00:00Z",
-  deadline: null, finishedAt: null, durationMs: null, serverNow: "2026-10-24T00:00:00Z", ratingDelta: null,
+  id: 1,
+  puzzleId: 2,
+  difficulty: "Easy" as const,
+  status: "InProgress" as const,
+  mistakes: 0,
+  maxMistakes: 3,
+  progress: 0,
+  startedAt: "2026-10-24T00:00:00Z",
+  deadline: null,
+  finishedAt: null,
+  durationMs: null,
+  serverNow: "2026-10-24T00:00:00Z",
+  ratingDelta: null,
 };
 
 describe("mapAttemptToBoard", () => {
@@ -13,7 +23,14 @@ describe("mapAttemptToBoard", () => {
     const attempt: AttemptResponse = {
       ...shared,
       game: "Sudoku",
-      board: { game: "Sudoku", rows: 9, cols: 9, mines: 0, cells: `5${"0".repeat(80)}`, givens: `5${"0".repeat(80)}` },
+      board: {
+        game: "Sudoku",
+        rows: 9,
+        cols: 9,
+        mines: 0,
+        cells: `5${"0".repeat(80)}`,
+        givens: `5${"0".repeat(80)}`,
+      },
     };
     const result = mapAttemptToBoard(attempt);
     expect(result.game).toBe("Sudoku");
@@ -29,7 +46,14 @@ describe("mapAttemptToBoard", () => {
       ...shared,
       game: "Minesweeper",
       maxMistakes: 1,
-      board: { game: "Minesweeper", rows: 9, cols: 9, mines: 10, cells: `0${"#".repeat(80)}`, givens: null },
+      board: {
+        game: "Minesweeper",
+        rows: 9,
+        cols: 9,
+        mines: 10,
+        cells: `0${"#".repeat(80)}`,
+        givens: null,
+      },
     };
     const result = mapAttemptToBoard(attempt);
     expect(result.game).toBe("Minesweeper");
@@ -45,13 +69,27 @@ describe("mapAttemptToBoard", () => {
       ...shared,
       game: "Sudoku",
       status: "Solved",
-      board: { game: "Sudoku", rows: 9, cols: 9, mines: 0, cells: "1".repeat(81), givens: "1".repeat(81) },
+      board: {
+        game: "Sudoku",
+        rows: 9,
+        cols: 9,
+        mines: 0,
+        cells: "1".repeat(81),
+        givens: "1".repeat(81),
+      },
     };
     const failedAttempt: AttemptResponse = {
       ...shared,
       game: "Sudoku",
       status: "Failed",
-      board: { game: "Sudoku", rows: 9, cols: 9, mines: 0, cells: "0".repeat(81), givens: "0".repeat(81) },
+      board: {
+        game: "Sudoku",
+        rows: 9,
+        cols: 9,
+        mines: 0,
+        cells: "0".repeat(81),
+        givens: "0".repeat(81),
+      },
     };
     const solvedResult = mapAttemptToBoard(solvedAttempt);
     const failedResult = mapAttemptToBoard(failedAttempt);
@@ -66,7 +104,14 @@ describe("mapAttemptToBoard", () => {
       game: "Minesweeper",
       status: "Failed",
       maxMistakes: 1,
-      board: { game: "Minesweeper", rows: 9, cols: 9, mines: 10, cells: failedCells, givens: null },
+      board: {
+        game: "Minesweeper",
+        rows: 9,
+        cols: 9,
+        mines: 10,
+        cells: failedCells,
+        givens: null,
+      },
     };
     const result = mapAttemptToBoard(attempt);
     expect(result.game).toBe("Minesweeper");
@@ -93,7 +138,14 @@ describe("mapAttemptToBoard", () => {
       ...shared,
       game: "Minesweeper",
       difficulty: "Hard",
-      board: { game: "Minesweeper", rows, cols, mines: 99, cells, givens: null },
+      board: {
+        game: "Minesweeper",
+        rows,
+        cols,
+        mines: 99,
+        cells,
+        givens: null,
+      },
     };
     const result = mapAttemptToBoard(attempt);
     expect(result.game).toBe("Minesweeper");
@@ -110,31 +162,65 @@ describe("mapAttemptToBoard", () => {
     const invalidCells: AttemptResponse = {
       ...shared,
       game: "Sudoku",
-      board: { game: "Sudoku", rows: 9, cols: 9, mines: 0, cells: "0".repeat(80), givens: "0".repeat(81) },
+      board: {
+        game: "Sudoku",
+        rows: 9,
+        cols: 9,
+        mines: 0,
+        cells: "0".repeat(80),
+        givens: "0".repeat(81),
+      },
     };
     const invalidGivens: AttemptResponse = {
       ...shared,
       game: "Sudoku",
-      board: { game: "Sudoku", rows: 9, cols: 9, mines: 0, cells: "0".repeat(81), givens: "0".repeat(82) },
+      board: {
+        game: "Sudoku",
+        rows: 9,
+        cols: 9,
+        mines: 0,
+        cells: "0".repeat(81),
+        givens: "0".repeat(82),
+      },
     };
-    expect(() => mapAttemptToBoard(invalidCells)).toThrow(/Sudoku cells phải có độ dài 81/);
-    expect(() => mapAttemptToBoard(invalidGivens)).toThrow(/Sudoku givens phải có độ dài 81/);
+    expect(() => mapAttemptToBoard(invalidCells)).toThrow(
+      /Sudoku cells phải có độ dài 81/,
+    );
+    expect(() => mapAttemptToBoard(invalidGivens)).toThrow(
+      /Sudoku givens phải có độ dài 81/,
+    );
   });
 
   it("throws Error when Minesweeper cells length does not match rows * cols", () => {
     const invalidMinesweeper: AttemptResponse = {
       ...shared,
       game: "Minesweeper",
-      board: { game: "Minesweeper", rows: 9, cols: 9, mines: 10, cells: "#".repeat(80), givens: null },
+      board: {
+        game: "Minesweeper",
+        rows: 9,
+        cols: 9,
+        mines: 10,
+        cells: "#".repeat(80),
+        givens: null,
+      },
     };
-    expect(() => mapAttemptToBoard(invalidMinesweeper)).toThrow(/Minesweeper cells phải có độ dài 81/);
+    expect(() => mapAttemptToBoard(invalidMinesweeper)).toThrow(
+      /Minesweeper cells phải có độ dài 81/,
+    );
   });
 
   it("does not mutate the input attempt object", () => {
     const attempt: AttemptResponse = {
       ...shared,
       game: "Sudoku",
-      board: { game: "Sudoku", rows: 9, cols: 9, mines: 0, cells: "0".repeat(81), givens: "0".repeat(81) },
+      board: {
+        game: "Sudoku",
+        rows: 9,
+        cols: 9,
+        mines: 0,
+        cells: "0".repeat(81),
+        givens: "0".repeat(81),
+      },
     };
     const snapshot = JSON.parse(JSON.stringify(attempt));
     mapAttemptToBoard(attempt, { lastWrongIndex: 4, disabled: true });
@@ -145,7 +231,14 @@ describe("mapAttemptToBoard", () => {
     const attempt: AttemptResponse = {
       ...shared,
       game: "Sudoku",
-      board: { game: "Sudoku", rows: 9, cols: 9, mines: 0, cells: "0".repeat(81), givens: "0".repeat(81) },
+      board: {
+        game: "Sudoku",
+        rows: 9,
+        cols: 9,
+        mines: 0,
+        cells: "0".repeat(81),
+        givens: "0".repeat(81),
+      },
     };
     const result = mapAttemptToBoard(attempt, { lastWrongIndex: 42 });
     if (result.game === "Sudoku") {

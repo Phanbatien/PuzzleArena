@@ -2,9 +2,9 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { ApiError, formatApiError } from "@/src/lib/api/client";
-import { useSuspiciousAttempts, useVoidAttempt } from "@/src/lib/api/hooks";
-import type { Game, SuspiciousAttemptResponse } from "@/src/lib/api/types";
+import { ApiError, formatApiError } from "@/lib/api";
+import { useSuspiciousAttempts, useVoidAttempt } from "@/lib/hooks";
+import type { Game, SuspiciousAttemptResponse } from "@/types/game";
 
 function formatMs(ms: number | null): string {
   if (ms === null) return "--";
@@ -33,14 +33,23 @@ function getVoidErrorMessage(error: unknown): string {
 export default function AdminPage() {
   const [selectedGame, setSelectedGame] = useState<Game | undefined>(undefined);
   const [limit, setLimit] = useState<number>(50);
-  const [actionMessage, setActionMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [actionMessage, setActionMessage] = useState<{
+    type: "success" | "error";
+    text: string;
+  } | null>(null);
 
-  const { data: suspiciousList, isLoading, isError, error, refetch } = useSuspiciousAttempts(selectedGame, limit);
+  const {
+    data: suspiciousList,
+    isLoading,
+    isError,
+    error,
+    refetch,
+  } = useSuspiciousAttempts(selectedGame, limit);
   const voidMutation = useVoidAttempt();
 
   const handleVoid = async (attempt: SuspiciousAttemptResponse) => {
     const confirmed = window.confirm(
-      `Xác nhận hủy kết quả lượt chơi #${attempt.attemptId} của người chơi "${attempt.username}"?`
+      `Xác nhận hủy kết quả lượt chơi #${attempt.attemptId} của người chơi "${attempt.username}"?`,
     );
     if (!confirmed) return;
 
@@ -81,7 +90,8 @@ export default function AdminPage() {
               Giám sát gian lận (Anti-Cheat)
             </h1>
             <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
-              Phát hiện các lượt giải bất thường theo thời gian, số nước đi và thuật toán phát hiện gian lận.
+              Phát hiện các lượt giải bất thường theo thời gian, số nước đi và
+              thuật toán phát hiện gian lận.
             </p>
           </div>
 
@@ -120,7 +130,9 @@ export default function AdminPage() {
         {/* Filter Toolbar */}
         <section className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Trò chơi:</span>
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
+              Trò chơi:
+            </span>
             <button
               type="button"
               onClick={() => setSelectedGame(undefined)}
@@ -157,7 +169,10 @@ export default function AdminPage() {
           </div>
 
           <div className="flex items-center gap-2">
-            <label htmlFor="limitSelect" className="text-xs font-bold uppercase tracking-wider text-slate-500">
+            <label
+              htmlFor="limitSelect"
+              className="text-xs font-bold uppercase tracking-wider text-slate-500"
+            >
               Giới hạn:
             </label>
             <select
@@ -191,22 +206,26 @@ export default function AdminPage() {
             <p className="font-bold">Không thể tải danh sách nghi vấn:</p>
             <p className="mt-1 text-sm">{formatApiError(error)}</p>
             <p className="mt-3 text-xs text-rose-600 dark:text-rose-400">
-              Gợi ý: Đảm bảo bạn đã đăng nhập tài khoản có quyền Admin tại trang /login.
+              Gợi ý: Đảm bảo bạn đã đăng nhập tài khoản có quyền Admin tại trang
+              /login.
             </p>
           </div>
         )}
 
-        {!isLoading && !isError && (!suspiciousList || suspiciousList.length === 0) && (
-          <div className="flex flex-col items-center justify-center rounded-2xl border border-slate-200 bg-white p-16 text-center shadow-sm dark:border-slate-800 dark:bg-slate-900">
-            <span className="text-4xl">🛡️</span>
-            <p className="mt-3 text-base font-bold text-slate-900 dark:text-slate-100">
-              Không phát hiện lượt chơi nghi vấn
-            </p>
-            <p className="mt-1 text-sm text-slate-500">
-              Toàn bộ các lượt giải gần đây đều nằm trong ngưỡng an toàn hoặc bộ lọc chưa có dữ liệu.
-            </p>
-          </div>
-        )}
+        {!isLoading &&
+          !isError &&
+          (!suspiciousList || suspiciousList.length === 0) && (
+            <div className="flex flex-col items-center justify-center rounded-2xl border border-slate-200 bg-white p-16 text-center shadow-sm dark:border-slate-800 dark:bg-slate-900">
+              <span className="text-4xl">🛡️</span>
+              <p className="mt-3 text-base font-bold text-slate-900 dark:text-slate-100">
+                Không phát hiện lượt chơi nghi vấn
+              </p>
+              <p className="mt-1 text-sm text-slate-500">
+                Toàn bộ các lượt giải gần đây đều nằm trong ngưỡng an toàn hoặc
+                bộ lọc chưa có dữ liệu.
+              </p>
+            </div>
+          )}
 
         {!isLoading && !isError && suspiciousList && suspiciousList.length > 0 && (
           <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
@@ -224,7 +243,10 @@ export default function AdminPage() {
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                 {suspiciousList.map((item) => (
-                  <tr key={item.attemptId} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/40">
+                  <tr
+                    key={item.attemptId}
+                    className="hover:bg-slate-50/50 dark:hover:bg-slate-800/40"
+                  >
                     <td className="py-3 px-4 font-mono font-bold text-slate-900 dark:text-slate-100">
                       #{item.attemptId}
                       {item.tournamentId && (
@@ -253,8 +275,12 @@ export default function AdminPage() {
                       {formatMs(item.durationMs)}
                     </td>
                     <td className="py-3 px-4 text-xs text-slate-600 dark:text-slate-400">
-                      <div>Nước đi: <strong>{item.moves}</strong></div>
-                      <div>Lỗi: <strong>{item.mistakes}</strong></div>
+                      <div>
+                        Nước đi: <strong>{item.moves}</strong>
+                      </div>
+                      <div>
+                        Lỗi: <strong>{item.mistakes}</strong>
+                      </div>
                     </td>
                     <td className="py-3 px-4">
                       <div className="flex flex-wrap gap-1">
@@ -275,7 +301,9 @@ export default function AdminPage() {
                         onClick={() => void handleVoid(item)}
                         className="rounded-lg bg-rose-600 px-3 py-1.5 text-xs font-bold text-white transition-all hover:bg-rose-700 disabled:opacity-50"
                       >
-                        {voidMutation.isPending ? "Đang hủy…" : "Hủy lượt (Void)"}
+                        {voidMutation.isPending
+                          ? "Đang hủy…"
+                          : "Hủy lượt (Void)"}
                       </button>
                     </td>
                   </tr>

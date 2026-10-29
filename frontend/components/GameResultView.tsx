@@ -1,7 +1,7 @@
 import Link from "next/link";
 import MinesweeperBoard from "./MinesweeperBoard";
-import type { AttemptResponse } from "@/src/lib/api/types";
-import { mapMinesweeper } from "@/src/lib/game/mapAttempt";
+import { mapMinesweeper } from "@/lib/game/mapAttempt";
+import type { AttemptResponse } from "@/types/game";
 
 export type GameResultViewProps = {
   attempt: AttemptResponse;
@@ -16,8 +16,10 @@ function formatDuration(totalMs: number): string {
 
 export default function GameResultView({ attempt }: GameResultViewProps) {
   const isSolved = attempt.status === "Solved";
-  const isFailedMinesweeper = attempt.board.game === "Minesweeper" && attempt.status === "Failed";
-  const minesweeperProps = attempt.board.game === "Minesweeper" ? mapMinesweeper(attempt) : null;
+  const isFailedMinesweeper =
+    attempt.board.game === "Minesweeper" && attempt.status === "Failed";
+  const minesweeperProps =
+    attempt.board.game === "Minesweeper" ? mapMinesweeper(attempt) : null;
 
   const gameTitle = attempt.game === "Sudoku" ? "Sudoku" : "Dò mìn";
   const difficultyLabel: Record<string, string> = {
@@ -29,7 +31,9 @@ export default function GameResultView({ attempt }: GameResultViewProps) {
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-col items-center gap-6">
       <header className="text-center">
-        <p className="text-sm font-semibold uppercase tracking-widest text-brand-700">PuzzleArena</p>
+        <p className="text-sm font-semibold uppercase tracking-widest text-brand-700">
+          PuzzleArena
+        </p>
         <h1 className="mt-1 text-3xl font-bold">{gameTitle}</h1>
         <p className="mt-1 text-slate-600 dark:text-slate-400">
           Độ khó: {difficultyLabel[attempt.difficulty] ?? attempt.difficulty}
@@ -57,29 +61,41 @@ export default function GameResultView({ attempt }: GameResultViewProps) {
 
         <div className="mt-6 grid grid-cols-2 gap-3 rounded-xl bg-white/80 p-4 text-center sm:grid-cols-4 dark:bg-slate-900/80">
           <div>
-            <p className="text-xs font-semibold uppercase text-slate-500">Trạng thái</p>
+            <p className="text-xs font-semibold uppercase text-slate-500">
+              Trạng thái
+            </p>
             <p
               className={`mt-1 text-lg font-bold ${
-                isSolved ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"
+                isSolved
+                  ? "text-emerald-600 dark:text-emerald-400"
+                  : "text-rose-600 dark:text-rose-400"
               }`}
             >
               {isSolved ? "Thắng" : "Thua"}
             </p>
           </div>
           <div>
-            <p className="text-xs font-semibold uppercase text-slate-500">Thời gian</p>
+            <p className="text-xs font-semibold uppercase text-slate-500">
+              Thời gian
+            </p>
             <p className="mt-1 font-mono text-lg font-bold text-slate-900 dark:text-slate-100">
-              {attempt.durationMs !== null ? formatDuration(attempt.durationMs) : "—"}
+              {attempt.durationMs !== null
+                ? formatDuration(attempt.durationMs)
+                : "—"}
             </p>
           </div>
           <div>
-            <p className="text-xs font-semibold uppercase text-slate-500">Lỗi</p>
+            <p className="text-xs font-semibold uppercase text-slate-500">
+              Lỗi
+            </p>
             <p className="mt-1 text-lg font-bold text-slate-900 dark:text-slate-100">
               {attempt.mistakes}/{attempt.maxMistakes}
             </p>
           </div>
           <div>
-            <p className="text-xs font-semibold uppercase text-slate-500">Rating</p>
+            <p className="text-xs font-semibold uppercase text-slate-500">
+              Rating
+            </p>
             <p className="mt-1 font-mono text-lg font-bold text-slate-900 dark:text-slate-100">
               {attempt.ratingDelta !== null
                 ? attempt.ratingDelta > 0
