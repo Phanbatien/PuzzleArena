@@ -4,10 +4,13 @@ using Microsoft.AspNetCore.SignalR;
 namespace PuzzleArena.Api.Hubs;
 
 /// <summary>
-/// Server → client only. Events: "progress" (public numbers), "board" (monitor group, full boards), "stage".
-/// Boards go to admins only: every player solves the same puzzle, so a public board would leak the answer.
+/// /hubs/arena. Client gọi Watch(id) hoặc Monitor(id); server gửi:
+///   "stage"    : trạng thái mới của giải (Open, Qualifier, ...)
+///   "progress" : bảng xếp hạng vòng hiện tại (tên, %, lỗi, thời gian), ai xem cũng được
+///   "board"    : bàn chơi đầy đủ của một người chung kết, CHỈ admin
+/// Khán giả không nhận bàn chơi: mọi người chơi chung một đề, công khai bàn là lộ đáp án.
 /// </summary>
-public class ArenaHub : Hub
+public sealed class ArenaHub : Hub
 {
     public static string Public(int tournamentId) => $"t-{tournamentId}";
     public static string Monitors(int tournamentId) => $"t-{tournamentId}-monitor";
