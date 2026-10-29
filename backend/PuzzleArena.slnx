@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="PuzzleArena.Api/PuzzleArena.Api.csproj" />
+  <Project Path="PuzzleArena.Tests/PuzzleArena.Tests.csproj" />
+</Solution>
