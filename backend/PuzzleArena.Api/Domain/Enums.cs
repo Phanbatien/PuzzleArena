@@ -36,6 +36,13 @@ public enum TournamentStatus
     Closed,
 }
 
+// BE3: which round a TournamentPuzzle belongs to.
+public enum TournamentStage
+{
+    Qualifier,
+    Final,
+}
+
 public enum BoosterType
 {
     Hint,

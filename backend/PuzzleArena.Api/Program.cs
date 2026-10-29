@@ -10,7 +10,9 @@ using PuzzleArena.Api.Data;
 using PuzzleArena.Api.Endpoints;
 using PuzzleArena.Api.Entities;
 using PuzzleArena.Api.Games;
+using PuzzleArena.Api.Hubs;
 using PuzzleArena.Api.Rating;
+using PuzzleArena.Api.Tournaments;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -27,9 +29,23 @@ else
         options.UseNpgsql(builder.Configuration.GetConnectionString("Default")));
 
 builder.Services.AddSingleton<IPasswordHasher<User>, PasswordHasher<User>>();
-builder.Services.AddSingleton<IPuzzleGenerator, StubPuzzleGenerator>();
+builder.Services.AddSingleton<IPuzzleGenerator, GamePuzzleGenerator>();
 builder.Services.AddScoped<IRatingService, RatingService>();
 builder.Services.AddScoped<IBoosterService, BoosterService>();
+builder.Services.AddScoped<AttemptService>();
+
+// BE3: giải đấu, realtime, cache bảng xếp hạng.
+builder.Services.AddScoped<TournamentService>();
+builder.Services.AddScoped<TournamentEvents>();
+builder.Services.AddScoped<IAttemptEvents>(sp => sp.GetRequiredService<TournamentEvents>());
+builder.Services.AddHostedService<TournamentClock>();
+builder.Services.AddSignalR()
+    .AddJsonProtocol(o => o.PayloadSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
+var redis = builder.Configuration.GetConnectionString("Redis");
+if (string.IsNullOrWhiteSpace(redis))
+    builder.Services.AddDistributedMemoryCache();
+else
+    builder.Services.AddStackExchangeRedisCache(options => options.Configuration = redis);
 
 var jwtKey = builder.Configuration["Jwt:Key"]
     ?? throw new InvalidOperationException("Jwt:Key is missing.");
@@ -51,6 +67,14 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         };
         options.Events = new JwtBearerEvents
         {
+            // Trình duyệt không gửi được header Authorization qua WebSocket: SignalR đưa token vào ?access_token=.
+            OnMessageReceived = context =>
+            {
+                var token = context.Request.Query["access_token"];
+                if (!string.IsNullOrEmpty(token) && context.HttpContext.Request.Path.StartsWithSegments("/hubs"))
+                    context.Token = token;
+                return Task.CompletedTask;
+            },
             OnChallenge = async context =>
             {
                 context.HandleResponse();
@@ -75,7 +99,8 @@ builder.Services.AddCors(options =>
     options.AddPolicy("Frontend", policy =>
         policy.WithOrigins("http://localhost:3000")
             .AllowAnyHeader()
-            .WithMethods("GET", "POST", "PATCH"));
+            .WithMethods("GET", "POST", "PATCH")
+            .AllowCredentials()); // SignalR client gửi kèm credentials khi negotiate
 });
 
 var app = builder.Build();
@@ -92,6 +117,8 @@ using (var scope = app.Services.CreateScope())
     {
         var hasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher<User>>();
         await DevSeeder.SeedAsync(db, hasher);
+        if (app.Configuration.GetValue("Seed:FakeLeaderboard", false))
+            await DemoLeaderboardSeeder.SeedAsync(db, scope.ServiceProvider.GetRequiredService<IPuzzleGenerator>());
     }
 }
 
@@ -106,6 +133,11 @@ app.MapDailyEndpoints();
 app.MapProfileEndpoints();
 app.MapBoosterEndpoints();
 app.MapAdminEndpoints();
+app.MapAttemptEndpoints();
+app.MapAdminAttemptEndpoints();
+app.MapTournamentEndpoints();
+app.MapLeaderboardEndpoints();
+app.MapHub<ArenaHub>("/hubs/arena");
 
 app.Run();
 

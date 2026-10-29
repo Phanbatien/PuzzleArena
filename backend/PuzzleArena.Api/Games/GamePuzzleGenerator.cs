@@ -3,7 +3,7 @@ using PuzzleArena.Api.Entities;
 
 namespace PuzzleArena.Api.Games;
 
-// Bản thật thay cho StubPuzzleGenerator của BE1: IPuzzleGenerator -> GameEngine.
+// IPuzzleGenerator (hợp đồng của BE1) -> GameEngine của BE2.
 public sealed class GamePuzzleGenerator : IPuzzleGenerator
 {
     public Puzzle Generate(GameType game, Difficulty difficulty, int seed)

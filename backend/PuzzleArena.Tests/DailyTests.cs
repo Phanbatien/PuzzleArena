@@ -35,11 +35,11 @@ public class DailyTests : IClassFixture<ApiFactory>
         Assert.Equal("NotStarted", first[0].GetProperty("status").GetString());
         Assert.Equal(JsonValueKind.Null, first[0].GetProperty("attemptId").ValueKind);
         Assert.False(first[0].TryGetProperty("solution", out _));
-        Assert.DoesNotContain("stub|", first.ToString(), StringComparison.Ordinal);
 
         using var scope = _factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDb>();
-        var stored = await db.Puzzles.CountAsync(p => p.IsDaily && p.Solution.StartsWith("stub|"));
-        Assert.Equal(6, stored);
+        var stored = await db.Puzzles.Where(p => p.IsDaily).ToListAsync();
+        Assert.Equal(6, stored.Count);
+        Assert.All(stored, p => Assert.DoesNotContain(p.Solution, first.ToString() + mines.ToString()));
     }
 }

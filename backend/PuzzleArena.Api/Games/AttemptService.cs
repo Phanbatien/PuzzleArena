@@ -20,13 +20,25 @@ public sealed record AttemptResult(
 }
 
 /// <summary>
+/// Gọi sau mỗi thay đổi của một lượt (nước đi, bỏ cuộc, hết giờ). BE3 dùng để phát tiến độ giải đấu qua SignalR.
+/// </summary>
+public interface IAttemptEvents
+{
+    Task Changed(Attempt attempt, CancellationToken ct = default);
+}
+
+/// <summary>
 /// Trọng tài của một lượt chơi. Mọi quyết định (đúng/sai, thua, hết giờ, đúng chủ lượt) nằm ở đây,
 /// client không bao giờ tự quyết thắng thua. BE3 (giải đấu) cũng gọi <see cref="Start"/> để tạo lượt.
 ///
 /// MoveLog: mỗi nước một dòng "elapsedMs|index|value|K\n" với K = C (đúng), W (sai, tính lỗi),
 /// S (sai nhưng được Khiên đỡ). Đồng hồ lấy từ server (elapsedMs = lúc nhận nước - StartedAt).
 /// </summary>
-public sealed class AttemptService(AppDb db, IBoosterService boosters, IRatingService ratings)
+public sealed class AttemptService(
+    AppDb db,
+    IBoosterService boosters,
+    IRatingService ratings,
+    IAttemptEvents? events = null)
 {
     public async Task<Attempt> Start(
         int userId,
@@ -61,11 +73,20 @@ public sealed class AttemptService(AppDb db, IBoosterService boosters, IRatingSe
         if (attempt.UserId != userId && !isAdmin)
             return AttemptResult.Fail(StatusCodes.Status403Forbidden, "Đây không phải lượt chơi của bạn.");
 
-        await ExpireIfNeeded(attempt, DateTimeOffset.UtcNow, ct);
+        if (await ExpireIfNeeded(attempt, DateTimeOffset.UtcNow, ct))
+            await Notify(attempt, ct);
         return new AttemptResult(attempt);
     }
 
     public async Task<AttemptResult> Move(int userId, int attemptId, int index, int value, CancellationToken ct = default)
+    {
+        var result = await MoveCore(userId, attemptId, index, value, ct);
+        if (result.Attempt is not null)
+            await Notify(result.Attempt, ct);
+        return result;
+    }
+
+    private async Task<AttemptResult> MoveCore(int userId, int attemptId, int index, int value, CancellationToken ct)
     {
         var attempt = await Load(attemptId, ct);
         if (attempt is null)
@@ -75,7 +96,10 @@ public sealed class AttemptService(AppDb db, IBoosterService boosters, IRatingSe
 
         var now = DateTimeOffset.UtcNow;
         if (await ExpireIfNeeded(attempt, now, ct))
+        {
+            await Notify(attempt, ct);
             return AttemptResult.Fail(StatusCodes.Status400BadRequest, "Đã hết giờ, lượt chơi kết thúc.");
+        }
         if (attempt.Status != AttemptStatus.InProgress)
             return AttemptResult.Fail(StatusCodes.Status400BadRequest, "Lượt chơi đã kết thúc.");
 
@@ -142,8 +166,11 @@ public sealed class AttemptService(AppDb db, IBoosterService boosters, IRatingSe
             return AttemptResult.Fail(StatusCodes.Status403Forbidden, "Đây không phải lượt chơi của bạn.");
 
         var now = DateTimeOffset.UtcNow;
+        var wasInProgress = attempt.Status == AttemptStatus.InProgress;
         if (!await ExpireIfNeeded(attempt, now, ct) && attempt.Status == AttemptStatus.InProgress)
             await Finish(attempt, solved: false, at: now, ct);
+        if (wasInProgress)
+            await Notify(attempt, ct);
 
         return new AttemptResult(attempt); // gọi lại khi đã kết thúc thì trả nguyên trạng thái (idempotent)
     }
@@ -298,6 +325,8 @@ public sealed class AttemptService(AppDb db, IBoosterService boosters, IRatingSe
         await db.SaveChangesAsync(ct);
         await ratings.ApplyResult(a.UserId, a.Id, solved, ct); // chỉ tác dụng với đề daily, ván khác trả null
     }
+
+    private Task Notify(Attempt a, CancellationToken ct) => events?.Changed(a, ct) ?? Task.CompletedTask;
 
     private static void Log(Attempt a, long elapsedMs, int index, int value, char kind) =>
         a.MoveLog += $"{elapsedMs}|{index}|{value}|{kind}\n";

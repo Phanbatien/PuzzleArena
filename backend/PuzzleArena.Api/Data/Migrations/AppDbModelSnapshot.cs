@@ -77,6 +77,8 @@ namespace PuzzleArena.Api.Data.Migrations
 
                     b.HasIndex("PuzzleId");
 
+                    b.HasIndex("TournamentId");
+
                     b.HasIndex("UserId", "PuzzleId");
 
                     b.ToTable("Attempts");
@@ -185,6 +187,116 @@ namespace PuzzleArena.Api.Data.Migrations
                         .IsUnique();
 
                     b.ToTable("Puzzles");
+                });
+
+            modelBuilder.Entity("PuzzleArena.Api.Entities.Tournament", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Difficulty")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<DateTimeOffset?>("FinalStartedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("FinalistCount")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("GameType")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
+
+                    b.Property<DateTimeOffset?>("QualifierStartedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("RoundMinutes")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("Tournaments");
+                });
+
+            modelBuilder.Entity("PuzzleArena.Api.Entities.TournamentEntry", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int?>("FinalRank")
+                        .HasColumnType("integer");
+
+                    b.Property<bool>("IsFinalist")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTimeOffset>("RegisteredAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("TournamentId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId");
+
+                    b.HasIndex("TournamentId", "UserId")
+                        .IsUnique();
+
+                    b.ToTable("TournamentEntries");
+                });
+
+            modelBuilder.Entity("PuzzleArena.Api.Entities.TournamentPuzzle", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("PuzzleId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Stage")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<int>("TournamentId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PuzzleId");
+
+                    b.HasIndex("TournamentId", "Stage")
+                        .IsUnique();
+
+                    b.ToTable("TournamentPuzzles");
                 });
 
             modelBuilder.Entity("PuzzleArena.Api.Entities.User", b =>
@@ -297,6 +409,44 @@ namespace PuzzleArena.Api.Data.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("PuzzleArena.Api.Entities.TournamentEntry", b =>
+                {
+                    b.HasOne("PuzzleArena.Api.Entities.Tournament", "Tournament")
+                        .WithMany("Entries")
+                        .HasForeignKey("TournamentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("PuzzleArena.Api.Entities.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Tournament");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("PuzzleArena.Api.Entities.TournamentPuzzle", b =>
+                {
+                    b.HasOne("PuzzleArena.Api.Entities.Puzzle", "Puzzle")
+                        .WithMany()
+                        .HasForeignKey("PuzzleId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("PuzzleArena.Api.Entities.Tournament", "Tournament")
+                        .WithMany("Puzzles")
+                        .HasForeignKey("TournamentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Puzzle");
+
+                    b.Navigation("Tournament");
+                });
+
             modelBuilder.Entity("PuzzleArena.Api.Entities.UserRating", b =>
                 {
                     b.HasOne("PuzzleArena.Api.Entities.User", "User")
@@ -306,6 +456,13 @@ namespace PuzzleArena.Api.Data.Migrations
                         .IsRequired();
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("PuzzleArena.Api.Entities.Tournament", b =>
+                {
+                    b.Navigation("Entries");
+
+                    b.Navigation("Puzzles");
                 });
 
             modelBuilder.Entity("PuzzleArena.Api.Entities.User", b =>
