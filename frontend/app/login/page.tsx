@@ -154,7 +154,11 @@ export default function LoginPage() {
   return (
     <PageContainer
       title={isLogin ? "Đăng nhập" : "Đăng ký"}
-      description="Đăng nhập để chơi Daily Puzzle và theo dõi xếp hạng."
+      description={
+        isLogin
+          ? "Đăng nhập để chơi Daily Puzzle và theo dõi xếp hạng."
+          : "Tạo tài khoản để chơi Daily Puzzle và theo dõi xếp hạng."
+      }
     >
       <div className="mx-auto max-w-md">
         <Card>
