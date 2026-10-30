@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 import Button from "@/components/ui/Button";
 import { useAuth } from "@/components/auth/AuthProvider";
 
@@ -22,6 +23,16 @@ export default function Navbar() {
   const router = useRouter();
   const { user, isReady, logout } = useAuth();
 
+  // Đảm bảo lần render đầu trên client giống HTML từ server.
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // Chỉ hiển thị trạng thái đăng nhập sau khi component đã mount.
+  const authReady = mounted && isReady;
+
   function handleLogout() {
     logout(); // xóa token + user, cả app cập nhật
     router.push("/login");
@@ -41,11 +52,12 @@ export default function Navbar() {
           PuzzleArena
         </Link>
 
-        {/* Chỉ hiện phần bên phải khi đã đọc xong phiên đăng nhập, tránh nháy giao diện */}
-        {isReady && user && (
+        {/* Chỉ hiện phần bên phải sau khi mount và đọc xong phiên đăng nhập */}
+        {authReady && user && (
           <div className="flex flex-wrap items-center gap-1 sm:gap-2">
             {visibleLinks.map((link) => {
               const isActive = pathname.startsWith(link.href);
+
               return (
                 <Link
                   key={link.href}
@@ -71,7 +83,7 @@ export default function Navbar() {
           </div>
         )}
 
-        {isReady && !user && (
+        {authReady && !user && (
           <Link
             href="/login"
             className="inline-flex items-center justify-center rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-brand-700"
