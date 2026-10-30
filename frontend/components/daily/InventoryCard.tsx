@@ -14,11 +14,20 @@ const boosterLabels: Record<InventoryItem["type"], string> = {
   Shield: "Khiên",
 };
 
-// GIẢ ĐỊNH (cần xác nhận với BE1/BE2): mô tả tác dụng chỉ viết chung chung,
-// vì hợp đồng chưa nói rõ chính xác Gợi ý và Khiên hoạt động thế nào.
+// Mô tả tác dụng: lời BE1 xác nhận ngày 2026-10-22.
+// ASSUMPTION: BE1 nói theo code nhánh be1/tai-khoan-daily-rating,
+// chưa kiểm chứng bằng backend thật.
 const boosterDescriptions: Record<InventoryItem["type"], string> = {
-  Hint: "Giúp bạn khi bị bí trong lúc chơi.",
-  Shield: "Bảo vệ bạn khi mắc lỗi trong lúc chơi.",
+  Hint: "Mở một ô còn trống trên bàn chơi hiện tại. Tốn 1. Không dùng trong giải đấu.",
+  Shield:
+    "Hủy một nước Sudoku sai, nước đó không tính là lỗi. Tốn 1. Không dùng trong giải đấu.",
+};
+
+// Cách nhận: cũng là lời BE1 (cùng ASSUMPTION như trên).
+const boosterHowToEarn: Record<InventoryItem["type"], string> = {
+  Hint: "Cách nhận: giải 1 đề daily trong ngày được 1 Gợi ý (một lần). Đề hỏng không tính.",
+  Shield:
+    "Cách nhận: giải 5 đề daily trong tuần được 1 Khiên (một lần). Đề hỏng không tính.",
 };
 
 export default function InventoryCard({ items }: InventoryCardProps) {
@@ -50,14 +59,17 @@ export default function InventoryCard({ items }: InventoryCardProps) {
               <p className="mt-2 text-sm text-slate-600">
                 {boosterDescriptions[type]}
               </p>
+              <p className="mt-2 text-xs text-slate-500">
+                {boosterHowToEarn[type]}
+              </p>
             </div>
           );
         })}
       </div>
 
       <p className="mt-4 text-xs text-slate-500">
-        Bổ trợ không được dùng trong giải đấu. Việc kiểm tra và sử dụng bổ trợ
-        trong ván chơi do hệ thống chơi game xử lý.
+        Việc kiểm tra và sử dụng bổ trợ trong ván chơi do hệ thống chơi game xử
+        lý.
       </p>
     </Card>
   );

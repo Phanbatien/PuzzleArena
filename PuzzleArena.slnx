@@ -1,0 +1,6 @@
+<Solution>
+  <Folder Name="/backend/">
+    <Project Path="backend/PuzzleArena.Api/PuzzleArena.Api.csproj" />
+    <Project Path="backend/PuzzleArena.Tests/PuzzleArena.Tests.csproj" />
+  </Folder>
+</Solution>

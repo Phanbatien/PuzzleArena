@@ -5,10 +5,10 @@
 //   node scripts/demo-bots.mjs <tournamentId> [bots=8] [msPerMove=600]
 //
 // Start it while the tournament is Open, then drive the stages from the admin screen.
-// Needs the dev seed accounts (player1..N) from appsettings.Development.json.
+// Needs the dev seed accounts player1..player8 (DevSeeder, Development environment only).
 
-const API = process.env.API_URL ?? "http://localhost:5080";
-const PASSWORD = process.env.BOT_PASSWORD ?? "player123";
+const API = process.env.API_URL ?? "http://localhost:5000";
+const PASSWORD = process.env.BOT_PASSWORD ?? "123456"; // DevSeeder.Password
 const [tournamentId, bots = 8, pace = 600] = process.argv.slice(2).map(Number);
 if (!tournamentId) throw new Error("usage: node scripts/demo-bots.mjs <tournamentId> [bots] [msPerMove]");
 
