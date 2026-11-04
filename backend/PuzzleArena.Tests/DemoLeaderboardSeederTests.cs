@@ -31,8 +31,9 @@ public sealed class DemoLeaderboardSeederTests : IDisposable
         Assert.Equal(attempts, await _db.Attempts.CountAsync());
         Assert.True(attempts > 0);
         Assert.All(await _db.Users.ToListAsync(), u => Assert.Equal("", u.PasswordHash));
-        Assert.Equal(18, await _db.Puzzles.CountAsync(p => p.IsDaily)); // 2 game × 3 độ khó × 3 ngày
-        Assert.True(await _db.Attempts.AllAsync(a => a.Status == AttemptStatus.Solved && a.TournamentId == null));
+        Assert.Equal(attempts, await _db.Puzzles.CountAsync(p => p.IsDaily)); // mỗi lượt một đề riêng
+        Assert.Equal(attempts, await _db.AttemptRatings.CountAsync());      // mỗi lượt có Elo cho bảng Top ngày/tuần
+        Assert.True(await _db.Attempts.AllAsync(a => a.Status != AttemptStatus.InProgress && a.TournamentId == null));
     }
 
     public void Dispose()

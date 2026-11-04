@@ -46,15 +46,18 @@ public record HistoryResponse(
     AttemptStatus Status,
     int? RatingChange);
 
+// Một thẻ của /daily cho mỗi độ khó. Chơi không giới hạn: mỗi lượt là một đề ngẫu nhiên mới.
+// Status = "InProgress" khi có lượt đang dở (AttemptId để chơi tiếp), còn lại "NotStarted".
 public record DailyPuzzleResponse(
-    int Id,
     GameType GameType,
     Difficulty Difficulty,
     DateOnly DailyDate,
     int RatingIfSolved,
     int RatingIfFailed,
     string Status,
-    int? AttemptId);
+    int? AttemptId,
+    int PlayedToday,
+    int SolvedToday);
 
 public record BoosterBalanceResponse(BoosterType Type, int Amount);
 

@@ -51,7 +51,9 @@ public static class LeaderboardEndpoints
         return Results.Ok(rows);
     }
 
-    // period = day (hôm nay) | week (tuần ISO hiện tại, từ thứ Hai). Điểm: Dễ 1, Vừa 2, Khó 3 cho mỗi đề daily giải được.
+    // period = day (hôm nay) | week (tuần ISO hiện tại, từ thứ Hai).
+    // Điểm = tổng Elo kiếm được từ các lượt daily trong kỳ (giải hỏng thì âm). Daily chơi không giới hạn,
+    // nên không đếm số đề: rating càng cao thì đề dễ cho càng ít điểm, cày đề dễ không lên top được.
     private static async Task<IResult> Daily(string? game, string? period, AppDb db, IDistributedCache cache, CancellationToken ct)
     {
         if (!TryGame(game, out var gameType))
@@ -65,39 +67,40 @@ public static class LeaderboardEndpoints
 
         var rows = await Cached(cache, $"lb:daily:{gameType}:{period}:{from:yyyyMMdd}", async () =>
         {
-            var solved = await db.Attempts.AsNoTracking()
-                .Where(a => a.Status == AttemptStatus.Solved && a.TournamentId == null
-                    && a.Puzzle.IsDaily && a.Puzzle.GameType == gameType
-                    && a.Puzzle.DailyDate >= from && a.Puzzle.DailyDate <= today
-                    && !a.User.IsLocked)
-                .Select(a => new { a.UserId, a.User.Username, a.Puzzle.Difficulty, a.DurationMs, a.Mistakes })
+            var played = await db.AttemptRatings.AsNoTracking()
+                .Where(r => r.Attempt.TournamentId == null
+                    && r.Attempt.Puzzle.IsDaily && r.Attempt.Puzzle.GameType == gameType
+                    && r.Attempt.Puzzle.DailyDate >= from && r.Attempt.Puzzle.DailyDate <= today
+                    && !r.Attempt.User.IsLocked)
+                .Select(r => new
+                {
+                    r.UserId,
+                    r.Attempt.User.Username,
+                    r.Delta,
+                    Solved = r.Attempt.Status == AttemptStatus.Solved,
+                    r.Attempt.DurationMs,
+                    r.Attempt.Mistakes,
+                })
                 .ToListAsync(ct);
 
-            return solved
+            return played
                 .GroupBy(a => (a.UserId, a.Username))
                 .Select(g => new
                 {
                     g.Key.UserId,
                     g.Key.Username,
-                    Score = g.Sum(a => Points(a.Difficulty)),
-                    Solved = g.Count(),
-                    Duration = g.Sum(a => a.DurationMs ?? 0),
+                    Score = g.Sum(a => a.Delta),
+                    Solved = g.Count(a => a.Solved),
+                    Duration = g.Where(a => a.Solved).Sum(a => a.DurationMs ?? 0),
                     Mistakes = g.Sum(a => a.Mistakes),
                 })
-                .OrderByDescending(x => x.Score).ThenBy(x => x.Duration).ThenBy(x => x.Mistakes).ThenBy(x => x.UserId)
+                .OrderByDescending(x => x.Score).ThenByDescending(x => x.Solved).ThenBy(x => x.Duration).ThenBy(x => x.UserId)
                 .Take(Top)
                 .Select((x, i) => new DailyLeaderboardRow(i + 1, x.UserId, x.Username, x.Score, x.Solved, x.Duration, x.Mistakes))
                 .ToList();
         }, ct);
         return Results.Ok(rows);
     }
-
-    public static int Points(Difficulty d) => d switch
-    {
-        Difficulty.Easy => 1,
-        Difficulty.Medium => 2,
-        _ => 3,
-    };
 
     private static bool TryGame(string? game, out GameType gameType)
     {

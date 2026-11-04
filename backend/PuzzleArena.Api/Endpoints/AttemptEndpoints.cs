@@ -12,20 +12,24 @@ public static class AttemptEndpoints
         app.MapGet("/api/attempts/{id:int}", Get).RequireAuthorization();
         app.MapPost("/api/attempts/{id:int}/move", Move).RequireAuthorization();
         app.MapPost("/api/attempts/{id:int}/abandon", Abandon).RequireAuthorization();
-        app.MapPost("/api/daily/{puzzleId:int}/start", StartDaily).RequireAuthorization();
+        app.MapPost("/api/daily/start", StartDaily).RequireAuthorization();
     }
 
-    // Nút "Chơi ngay" ở /daily: tạo lượt từ đề daily (hoặc trả lại lượt đã có) rồi FE chuyển sang /play/{id}.
+    // Nút "Chơi" ở /daily: { "game": "Sudoku", "difficulty": "Easy" } -> lượt mới với đề ngẫu nhiên riêng,
+    // hoặc lượt đang dở cùng game + độ khó. FE chuyển sang /play/{id}.
     private static async Task<IResult> StartDaily(
-        int puzzleId,
+        PracticeRequest request,
         HttpContext http,
         AttemptService attempts,
+        IPuzzleGenerator generator,
         CancellationToken ct)
     {
         var userId = AuthEndpoints.CurrentUserId(http);
         if (userId is null) return Unauthorized();
+        if (request.Game is null || request.Difficulty is null)
+            return ApiResults.Error("Thiếu loại game hoặc độ khó.", StatusCodes.Status400BadRequest);
 
-        var result = await attempts.StartDaily(userId.Value, puzzleId, ct);
+        var result = await attempts.StartDaily(userId.Value, request.Game.Value, request.Difficulty.Value, generator, ct);
         return await Respond(result, attempts, isMove: false, ct);
     }
 

@@ -118,7 +118,7 @@ function DailyContent() {
       {/* 1. Đề Daily */}
       <section>
         <h2 className="mb-4 text-xl font-semibold text-slate-800">
-          Đề hôm nay
+          Chơi hôm nay
         </h2>
         {hasNoPuzzle ? (
           <p className="text-sm text-slate-600">
@@ -132,7 +132,7 @@ function DailyContent() {
               </h3>
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {data.sudoku.map((p) => (
-                  <DailyCard key={p.id} puzzle={p} />
+                  <DailyCard key={p.difficulty} puzzle={p} />
                 ))}
               </div>
             </div>
@@ -142,7 +142,7 @@ function DailyContent() {
               </h3>
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {data.minesweeper.map((p) => (
-                  <DailyCard key={p.id} puzzle={p} />
+                  <DailyCard key={p.difficulty} puzzle={p} />
                 ))}
               </div>
             </div>

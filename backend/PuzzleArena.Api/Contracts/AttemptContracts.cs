@@ -25,6 +25,8 @@ public record AttemptResponse(
     long? DurationMs,
     DateTimeOffset ServerNow,
     int? RatingDelta,
-    BoardView Board);
+    BoardView Board,
+    bool IsDaily,
+    int? TournamentId);
 
 public record MoveResponse(bool Correct, bool Shielded, AttemptResponse Attempt);

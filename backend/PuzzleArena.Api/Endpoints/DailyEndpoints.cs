@@ -2,7 +2,6 @@ using Microsoft.EntityFrameworkCore;
 using PuzzleArena.Api.Contracts;
 using PuzzleArena.Api.Data;
 using PuzzleArena.Api.Domain;
-using PuzzleArena.Api.Games;
 using PuzzleArena.Api.Rating;
 
 namespace PuzzleArena.Api.Endpoints;
@@ -16,11 +15,7 @@ public static class DailyEndpoints
         app.MapGet("/api/daily", GetDaily).RequireAuthorization();
     }
 
-    private static async Task<IResult> GetDaily(
-        string? game,
-        HttpContext http,
-        AppDb db,
-        IPuzzleGenerator generator)
+    private static async Task<IResult> GetDaily(string? game, HttpContext http, AppDb db)
     {
         var userId = AuthEndpoints.CurrentUserId(http);
         if (userId is null)
@@ -30,76 +25,35 @@ public static class DailyEndpoints
             return ApiResults.Error("Loại game không hợp lệ.", StatusCodes.Status400BadRequest);
 
         var today = DateOnly.FromDateTime(DateTime.UtcNow);
-        var puzzles = await EnsureDaily(db, generator, gameType, today);
-
         var rating = await db.UserRatings.AsNoTracking()
             .Where(r => r.UserId == userId && r.GameType == gameType)
             .Select(r => (int?)r.Value)
             .FirstOrDefaultAsync() ?? Elo.Initial;
 
-        var puzzleIds = puzzles.Select(p => p.Id).ToList();
-        var attempts = (await db.Attempts.AsNoTracking()
-            .Where(a => a.UserId == userId && puzzleIds.Contains(a.PuzzleId))
-            .ToListAsync())
-            .OrderByDescending(a => a.StartedAt)
-            .ToList();
+        // Lượt daily của người này: đang dở (mọi ngày) và đã chơi hôm nay.
+        var attempts = await db.Attempts.AsNoTracking()
+            .Where(a => a.UserId == userId && a.TournamentId == null && a.Puzzle.IsDaily && a.Puzzle.GameType == gameType
+                && (a.Status == AttemptStatus.InProgress || a.Puzzle.DailyDate == today))
+            .Select(a => new { a.Id, a.Status, a.Puzzle.Difficulty, a.Puzzle.DailyDate })
+            .ToListAsync();
 
-        var response = puzzles.Select(puzzle =>
+        var response = Difficulties.Select(difficulty =>
         {
-            var attempt = attempts.FirstOrDefault(a => a.PuzzleId == puzzle.Id);
-            var puzzleRating = Elo.PuzzleRating(puzzle.Difficulty);
+            var mine = attempts.Where(a => a.Difficulty == difficulty).ToList();
+            var playing = mine.Where(a => a.Status == AttemptStatus.InProgress).MaxBy(a => a.Id);
+            var puzzleRating = Elo.PuzzleRating(difficulty);
             return new DailyPuzzleResponse(
-                puzzle.Id,
-                puzzle.GameType,
-                puzzle.Difficulty,
-                puzzle.DailyDate ?? today,
+                gameType,
+                difficulty,
+                today,
                 Elo.Delta(rating, puzzleRating, won: true),
                 Elo.Delta(rating, puzzleRating, won: false),
-                attempt is null ? "NotStarted" : attempt.Status.ToString(),
-                attempt?.Id);
+                playing is null ? "NotStarted" : nameof(AttemptStatus.InProgress),
+                playing?.Id,
+                mine.Count(a => a.DailyDate == today),
+                mine.Count(a => a.DailyDate == today && a.Status == AttemptStatus.Solved));
         });
 
         return Results.Ok(response);
     }
-
-    private static async Task<List<Entities.Puzzle>> EnsureDaily(
-        AppDb db,
-        IPuzzleGenerator generator,
-        GameType game,
-        DateOnly today)
-    {
-        var existing = await db.Puzzles
-            .Where(p => p.IsDaily && p.DailyDate == today && p.GameType == game)
-            .ToListAsync();
-        if (existing.Count >= Difficulties.Length)
-            return Order(existing);
-
-        foreach (var difficulty in Difficulties)
-        {
-            if (existing.Any(p => p.Difficulty == difficulty))
-                continue;
-
-            var puzzle = generator.Generate(game, difficulty, DailySeed.For(today, game, difficulty));
-            puzzle.IsDaily = true;
-            puzzle.DailyDate = today;
-            db.Puzzles.Add(puzzle);
-        }
-
-        try
-        {
-            await db.SaveChangesAsync();
-        }
-        catch (DbUpdateException)
-        {
-            db.ChangeTracker.Clear();
-        }
-
-        var rows = await db.Puzzles
-            .Where(p => p.IsDaily && p.DailyDate == today && p.GameType == game)
-            .ToListAsync();
-        return Order(rows);
-    }
-
-    private static List<Entities.Puzzle> Order(List<Entities.Puzzle> puzzles) =>
-        puzzles.OrderBy(p => Array.IndexOf(Difficulties, p.Difficulty)).ToList();
 }

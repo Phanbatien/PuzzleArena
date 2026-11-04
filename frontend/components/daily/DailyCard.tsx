@@ -11,8 +11,7 @@ type DailyCardProps = {
   puzzle: DailyPuzzle;
 };
 
-// ĐÃ THẤY khi gọi thật POST /api/daily/{id}/start: id của lượt chơi là SỐ (Int32).
-// Ta chỉ cần id để chuyển sang /play/{id}, các trường khác của AttemptResponse không dùng ở đây.
+// POST /api/daily/start { game, difficulty } trả về AttemptResponse; ở đây chỉ cần id để chuyển sang /play/{id}.
 type StartResponse = {
   id: number;
 };
@@ -35,10 +34,8 @@ const statusInfo: Record<
   DailyPuzzle["status"],
   { label: string; className: string }
 > = {
-  NotStarted: { label: "Chưa chơi", className: "bg-slate-100 text-slate-700" },
-  InProgress: { label: "Đang chơi", className: "bg-amber-100 text-amber-800" },
-  Solved: { label: "Đã giải xong", className: "bg-green-100 text-green-800" },
-  Failed: { label: "Chưa giải được", className: "bg-red-100 text-red-800" },
+  NotStarted: { label: "Sẵn sàng", className: "bg-slate-100 text-slate-700" },
+  InProgress: { label: "Đang chơi dở", className: "bg-amber-100 text-amber-800" },
 };
 
 export default function DailyCard({ puzzle }: DailyCardProps) {
@@ -49,10 +46,8 @@ export default function DailyCard({ puzzle }: DailyCardProps) {
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Chỉ cho chơi khi đề chưa kết thúc
-  const canPlay =
-    puzzle.status === "NotStarted" || puzzle.status === "InProgress";
-  const playLabel = puzzle.status === "InProgress" ? "Chơi tiếp" : "Chơi ngay";
+  // Chơi không giới hạn: có lượt dở thì chơi tiếp lượt đó, không thì ván mới với đề mới.
+  const playLabel = puzzle.status === "InProgress" ? "Chơi tiếp" : puzzle.playedToday > 0 ? "Chơi ván mới" : "Chơi ngay";
 
   async function handlePlay() {
     setError(null);
@@ -63,13 +58,13 @@ export default function DailyCard({ puzzle }: DailyCardProps) {
       return;
     }
 
-    // Chưa có lượt: nhờ backend tạo lượt cho đề daily này (BE2 xác nhận).
-    // puzzle.id chính là puzzleId trong GET /api/daily.
+    // Chưa có lượt dở: backend sinh một đề ngẫu nhiên mới, không trùng đề mình đã chơi.
     setStarting(true);
     try {
-      const attempt = await api.post<StartResponse>(
-        `/api/daily/${puzzle.id}/start`,
-      );
+      const attempt = await api.post<StartResponse>("/api/daily/start", {
+        game: puzzle.gameType,
+        difficulty: puzzle.difficulty,
+      });
       if (attempt === null || attempt.id === undefined) {
         setError("Máy chủ không trả về mã lượt chơi. Vui lòng thử lại.");
         return;
@@ -119,14 +114,17 @@ export default function DailyCard({ puzzle }: DailyCardProps) {
         </div>
       </div>
 
-      {canPlay && (
-        <div className="mt-4">
-          <Button className="w-full" onClick={handlePlay} disabled={starting}>
-            {starting ? "Đang vào..." : playLabel}
-          </Button>
-          {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
-        </div>
-      )}
+      <p className="mt-3 text-sm text-slate-600">
+        Hôm nay: đã chơi {puzzle.playedToday} ván, giải được {puzzle.solvedToday}.
+        Mỗi ván là một đề mới.
+      </p>
+
+      <div className="mt-4">
+        <Button className="w-full" onClick={handlePlay} disabled={starting}>
+          {starting ? "Đang vào..." : playLabel}
+        </Button>
+        {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
+      </div>
     </Card>
   );
 }

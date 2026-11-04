@@ -10,20 +10,20 @@ import type {
 // Các con số ratingIfSolved/ratingIfFailed bên dưới chỉ là số ví dụ cho giao diện,
 // KHÔNG phải công thức. Backend mới là nơi tính điểm Elo.
 
-// 3 đề Sudoku hôm nay: đủ 3 trạng thái để thử giao diện.
+// 3 thẻ Sudoku (Dễ / Vừa / Khó): có thẻ đã chơi, có thẻ đang dở, để thử giao diện.
 export const mockDailySudoku: DailyPuzzle[] = [
   {
-    id: 1,
     gameType: "Sudoku",
     difficulty: "Easy",
     dailyDate: "2026-10-17",
     ratingIfSolved: 12,
     ratingIfFailed: -20,
-    status: "Solved",
-    attemptId: 101,
+    status: "NotStarted",
+    attemptId: null,
+    playedToday: 3,
+    solvedToday: 2,
   },
   {
-    id: 2,
     gameType: "Sudoku",
     difficulty: "Medium",
     dailyDate: "2026-10-17",
@@ -31,9 +31,10 @@ export const mockDailySudoku: DailyPuzzle[] = [
     ratingIfFailed: -5,
     status: "InProgress",
     attemptId: 102,
+    playedToday: 0,
+    solvedToday: 0,
   },
   {
-    id: 3,
     gameType: "Sudoku",
     difficulty: "Hard",
     dailyDate: "2026-10-17",
@@ -41,13 +42,14 @@ export const mockDailySudoku: DailyPuzzle[] = [
     ratingIfFailed: -1,
     status: "NotStarted",
     attemptId: null,
+    playedToday: 0,
+    solvedToday: 0,
   },
 ];
 
-// 3 đề Dò mìn hôm nay: chưa chơi đề nào.
+// 3 thẻ Dò mìn: chưa chơi ván nào hôm nay.
 export const mockDailyMinesweeper: DailyPuzzle[] = [
   {
-    id: 4,
     gameType: "Minesweeper",
     difficulty: "Easy",
     dailyDate: "2026-10-17",
@@ -55,9 +57,10 @@ export const mockDailyMinesweeper: DailyPuzzle[] = [
     ratingIfFailed: -26,
     status: "NotStarted",
     attemptId: null,
+    playedToday: 0,
+    solvedToday: 0,
   },
   {
-    id: 5,
     gameType: "Minesweeper",
     difficulty: "Medium",
     dailyDate: "2026-10-17",
@@ -65,9 +68,10 @@ export const mockDailyMinesweeper: DailyPuzzle[] = [
     ratingIfFailed: -10,
     status: "NotStarted",
     attemptId: null,
+    playedToday: 0,
+    solvedToday: 0,
   },
   {
-    id: 6,
     gameType: "Minesweeper",
     difficulty: "Hard",
     dailyDate: "2026-10-17",
@@ -75,6 +79,8 @@ export const mockDailyMinesweeper: DailyPuzzle[] = [
     ratingIfFailed: -1,
     status: "NotStarted",
     attemptId: null,
+    playedToday: 0,
+    solvedToday: 0,
   },
 ];
 

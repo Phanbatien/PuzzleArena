@@ -246,27 +246,37 @@ public sealed class AttemptService(
     }
 
     /// <summary>
-    /// Bắt đầu lượt chơi từ một đề daily của HÔM NAY. Mỗi người chỉ chơi mỗi đề 1 lần:
-    /// đã có lượt (đang chơi, thắng hay thua) thì trả lại đúng lượt đó, không tạo thêm.
+    /// Daily không giới hạn: mỗi lần bấm "Chơi" là một đề MỚI, sinh ngẫu nhiên riêng cho người đó
+    /// (không trùng đề người đó từng chơi), nên không thể học thuộc nước đi của ván đã thua.
+    /// Đang có lượt daily dở cùng game + độ khó thì trả lại lượt đó: muốn bỏ thì phải bấm bỏ cuộc
+    /// (tính là thua), nên không "đổi đề" được để né đề khó.
     /// </summary>
-    public async Task<AttemptResult> StartDaily(int userId, int puzzleId, CancellationToken ct = default)
+    public async Task<AttemptResult> StartDaily(
+        int userId,
+        GameType game,
+        Difficulty difficulty,
+        IPuzzleGenerator generator,
+        CancellationToken ct = default)
     {
-        var puzzle = await db.Puzzles.FirstOrDefaultAsync(p => p.Id == puzzleId && p.IsDaily, ct);
-        if (puzzle is null)
-            return AttemptResult.Fail(StatusCodes.Status404NotFound, "Không tìm thấy đề daily.");
-
-        var today = DateOnly.FromDateTime(DateTime.UtcNow);
-        if (puzzle.DailyDate != today)
-            return AttemptResult.Fail(StatusCodes.Status400BadRequest, "Đề daily này không phải của hôm nay.");
-
-        // Lấy lượt mới nhất, cùng cách chọn với GET /api/daily của BE1.
-        var existing = await db.Attempts.Include(a => a.Puzzle)
-            .Where(a => a.UserId == userId && a.PuzzleId == puzzleId && a.TournamentId == null)
+        var playing = await db.Attempts.Include(a => a.Puzzle)
+            .Where(a => a.UserId == userId && a.TournamentId == null && a.Status == AttemptStatus.InProgress
+                && a.Puzzle.IsDaily && a.Puzzle.GameType == game && a.Puzzle.Difficulty == difficulty)
             .OrderByDescending(a => a.Id)
             .FirstOrDefaultAsync(ct);
-        if (existing is not null)
-            return new AttemptResult(existing);
+        if (playing is not null)
+            return new AttemptResult(playing);
 
+        var seen = await db.Attempts.AsNoTracking()
+            .Where(a => a.UserId == userId && a.Puzzle.GameType == game && a.Puzzle.Difficulty == difficulty)
+            .Select(a => a.Puzzle.Seed)
+            .ToListAsync(ct);
+        var seenSeeds = seen.ToHashSet();
+        int seed;
+        do seed = Random.Shared.Next(); while (seenSeeds.Contains(seed)); // 2^31 seed: thực tế không phải lặp
+
+        var puzzle = generator.Generate(game, difficulty, seed);
+        puzzle.IsDaily = true;
+        puzzle.DailyDate = DateOnly.FromDateTime(DateTime.UtcNow);
         var attempt = await Start(userId, puzzle, ct: ct);
         return new AttemptResult(attempt);
     }
@@ -298,7 +308,9 @@ public sealed class AttemptService(
             a.DurationMs,
             DateTimeOffset.UtcNow,
             delta,
-            GameEngine.View(a.Puzzle, a.State, finished));
+            GameEngine.View(a.Puzzle, a.State, finished),
+            a.Puzzle.IsDaily,
+            a.TournamentId);
     }
 
     // ---- nội bộ -------------------------------------------------------------

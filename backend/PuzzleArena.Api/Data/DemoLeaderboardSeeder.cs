@@ -2,11 +2,12 @@ using Microsoft.EntityFrameworkCore;
 using PuzzleArena.Api.Domain;
 using PuzzleArena.Api.Entities;
 using PuzzleArena.Api.Games;
+using PuzzleArena.Api.Rating;
 
 namespace PuzzleArena.Api.Data;
 
 /// <summary>
-/// BE3: người chơi giả và kết quả daily 3 ngày gần nhất để bảng xếp hạng không trống khi demo.
+/// BE3: người chơi giả và kết quả daily 3 ngày gần nhất (đề ngẫu nhiên riêng, có Elo) để bảng xếp hạng không trống khi demo.
 /// Chỉ chạy khi bật "Seed:FakeLeaderboard" (launch profile của môi trường dev).
 /// Các tài khoản này không có mật khẩu nên không ai đăng nhập được, và tách khỏi admin, player1..8.
 /// </summary>
@@ -22,7 +23,7 @@ public static class DemoLeaderboardSeeder
 
     private static readonly Difficulty[] Difficulties = [Difficulty.Easy, Difficulty.Medium, Difficulty.Hard];
 
-    // ponytail: chỉ chạy lúc khởi động, nên server để qua nửa đêm thì "top ngày" của ngày mới trống cho tới khi khởi động lại.
+    // ponytail: chỉ chạy một lần (lúc khởi động, khi bot chưa có lượt nào), nên "top ngày" của các ngày sau chỉ có người thật.
     public static async Task SeedAsync(AppDb db, IPuzzleGenerator generator, CancellationToken ct = default)
     {
         var bots = await db.Users.Where(u => u.Email.EndsWith(EmailDomain)).ToListAsync(ct);
@@ -44,57 +45,57 @@ public static class DemoLeaderboardSeeder
         }
 
         var botIds = bots.Select(b => b.Id).ToList();
+        if (await db.Attempts.AnyAsync(a => botIds.Contains(a.UserId), ct))
+            return;
+
+        // Daily không giới hạn: mỗi bot chơi vài đề ngẫu nhiên riêng mỗi ngày, có thắng có thua.
         var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var ratings = await db.UserRatings.Where(r => botIds.Contains(r.UserId)).ToListAsync(ct);
         foreach (var game in Enum.GetValues<GameType>())
         {
             for (var back = 2; back >= 0; back--)
             {
                 var day = today.AddDays(-back);
-                var puzzles = await EnsureDaily(db, generator, game, day, ct);
-                var puzzleIds = puzzles.Select(p => p.Id).ToList();
-                if (await db.Attempts.AnyAsync(a => puzzleIds.Contains(a.PuzzleId) && botIds.Contains(a.UserId), ct))
-                    continue;
-
                 var rng = new Random(day.DayNumber * 31 + (int)game);
                 foreach (var bot in bots)
-                foreach (var puzzle in puzzles)
                 {
-                    var level = (int)puzzle.Difficulty + 1;
-                    if (rng.NextDouble() > 1.0 - 0.22 * level) continue; // đề càng khó càng ít người giải xong
-                    var started = new DateTimeOffset(day.ToDateTime(new TimeOnly(rng.Next(1, 14), rng.Next(60))), TimeSpan.Zero);
-                    var duration = (long)(level * 150_000 * (0.5 + rng.NextDouble()));
-                    db.Attempts.Add(new Attempt
+                    var rating = ratings.First(r => r.UserId == bot.Id && r.GameType == game);
+                    for (var n = rng.Next(0, 5); n > 0; n--)
                     {
-                        UserId = bot.Id,
-                        PuzzleId = puzzle.Id,
-                        Status = AttemptStatus.Solved,
-                        Progress = 100,
-                        StartedAt = started,
-                        FinishedAt = started.AddMilliseconds(duration),
-                        DurationMs = duration,
-                        Mistakes = game == GameType.Sudoku ? rng.Next(0, 3) : 0,
-                        State = puzzle.Solution,
-                    });
+                        var difficulty = Difficulties[rng.Next(Difficulties.Length)];
+                        var level = (int)difficulty + 1;
+                        var solved = rng.NextDouble() < 1.0 - 0.2 * level; // đề càng khó càng dễ hỏng
+                        var puzzle = generator.Generate(game, difficulty, rng.Next());
+                        puzzle.IsDaily = true;
+                        puzzle.DailyDate = day;
+                        var started = new DateTimeOffset(day.ToDateTime(new TimeOnly(rng.Next(1, 14), rng.Next(60))), TimeSpan.Zero);
+                        var duration = (long)(level * 150_000 * (0.5 + rng.NextDouble()));
+                        var attempt = new Attempt
+                        {
+                            UserId = bot.Id,
+                            Puzzle = puzzle,
+                            Status = solved ? AttemptStatus.Solved : AttemptStatus.Failed,
+                            Progress = solved ? 100 : rng.Next(20, 90),
+                            StartedAt = started,
+                            FinishedAt = started.AddMilliseconds(duration),
+                            DurationMs = duration,
+                            Mistakes = game == GameType.Sudoku ? rng.Next(0, solved ? 3 : 4) : solved ? 0 : 1,
+                            State = solved ? puzzle.Solution : GameEngine.InitialState(puzzle),
+                        };
+                        var delta = Elo.Delta(rating.Value, Elo.PuzzleRating(difficulty), solved);
+                        rating.Value += delta;
+                        db.Attempts.Add(attempt);
+                        db.AttemptRatings.Add(new AttemptRating
+                        {
+                            Attempt = attempt,
+                            UserId = bot.Id,
+                            Delta = delta,
+                            CreatedAt = attempt.FinishedAt.Value,
+                        });
+                    }
                 }
                 await db.SaveChangesAsync(ct);
             }
         }
-    }
-
-    // Cùng seed với GET /api/daily của BE1, nên đề hôm nay trùng với đề người chơi thật nhận được.
-    private static async Task<List<Puzzle>> EnsureDaily(
-        AppDb db, IPuzzleGenerator generator, GameType game, DateOnly day, CancellationToken ct)
-    {
-        var existing = await db.Puzzles.Where(p => p.IsDaily && p.DailyDate == day && p.GameType == game).ToListAsync(ct);
-        foreach (var difficulty in Difficulties.Where(d => existing.All(p => p.Difficulty != d)))
-        {
-            var puzzle = generator.Generate(game, difficulty, DailySeed.For(day, game, difficulty));
-            puzzle.IsDaily = true;
-            puzzle.DailyDate = day;
-            db.Puzzles.Add(puzzle);
-            existing.Add(puzzle);
-        }
-        await db.SaveChangesAsync(ct);
-        return existing;
     }
 }

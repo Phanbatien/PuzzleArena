@@ -13,8 +13,8 @@ public class AppDb(DbContextOptions<AppDb> options) : DbContext(options)
     public DbSet<BoosterGrant> BoosterGrants => Set<BoosterGrant>();
     public DbSet<AttemptRating> AttemptRatings => Set<AttemptRating>();
     public DbSet<Tournament> Tournaments => Set<Tournament>();
-    public DbSet<TournamentPuzzle> TournamentPuzzles => Set<TournamentPuzzle>();
     public DbSet<TournamentEntry> TournamentEntries => Set<TournamentEntry>();
+    public DbSet<TournamentMatch> TournamentMatches => Set<TournamentMatch>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -37,7 +37,8 @@ public class AppDb(DbContextOptions<AppDb> options) : DbContext(options)
         {
             entity.Property(p => p.GameType).HasConversion<string>().HasMaxLength(16);
             entity.Property(p => p.Difficulty).HasConversion<string>().HasMaxLength(16);
-            entity.HasIndex(p => new { p.GameType, p.Difficulty, p.DailyDate }).IsUnique();
+            // Daily không giới hạn: một ngày có nhiều đề cùng game + độ khó (mỗi lượt một đề riêng).
+            entity.HasIndex(p => new { p.GameType, p.Difficulty, p.DailyDate });
         });
 
         modelBuilder.Entity<Attempt>(entity =>
@@ -62,15 +63,21 @@ public class AppDb(DbContextOptions<AppDb> options) : DbContext(options)
         modelBuilder.Entity<Tournament>(entity =>
         {
             entity.Property(t => t.Name).HasMaxLength(80);
+            entity.Property(t => t.Description).HasMaxLength(1000);
+            entity.Property(t => t.ClosedNote).HasMaxLength(200);
             entity.Property(t => t.GameType).HasConversion<string>().HasMaxLength(16);
             entity.Property(t => t.Difficulty).HasConversion<string>().HasMaxLength(16);
             entity.Property(t => t.Status).HasConversion<string>().HasMaxLength(16);
+            entity.HasIndex(t => new { t.Status, t.StartsAt });
         });
 
-        modelBuilder.Entity<TournamentPuzzle>(entity =>
+        modelBuilder.Entity<TournamentMatch>(entity =>
         {
-            entity.Property(p => p.Stage).HasConversion<string>().HasMaxLength(16);
-            entity.HasIndex(p => new { p.TournamentId, p.Stage }).IsUnique();
+            entity.Property(m => m.Status).HasConversion<string>().HasMaxLength(16);
+            entity.Property(m => m.Note).HasMaxLength(120);
+            entity.HasIndex(m => new { m.TournamentId, m.Round, m.Slot }).IsUnique();
+            entity.HasOne(m => m.Player1).WithMany().HasForeignKey(m => m.Player1Id).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(m => m.Player2).WithMany().HasForeignKey(m => m.Player2Id).OnDelete(DeleteBehavior.Restrict);
         });
 
         modelBuilder.Entity<TournamentEntry>(entity =>

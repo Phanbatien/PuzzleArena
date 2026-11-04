@@ -43,17 +43,29 @@ Hai launch profile đều bật `Seed:FakeLeaderboard`: thêm 12 người chơi 
 dotnet test backend
 ```
 
+## Giải đấu: thể thức
+
+- Admin đặt **giờ bắt đầu**, số suất nhánh đấu (4/8/16/32), số phút mỗi trận và luật riêng. Đăng ký đóng lúc bắt đầu.
+- Tới giờ, giải tự chạy:
+  - số người ≤ số suất: vào thẳng **nhánh loại trực tiếp 1-1**, hạt giống theo điểm hạng, hạt giống cao được miễn vòng 1 nếu lẻ;
+  - đông hơn: **vòng loại** chung một đề trước, top N vào nhánh đấu (vòng loại đóng sớm khi mọi người đã làm xong).
+- Mỗi trận: hai người cùng một đề (mỗi trận một đề riêng). Giải xong trước thắng; sai quá số lỗi / trúng mìn / bỏ cuộc là thua;
+  hết giờ thì tiến độ cao hơn thắng, rồi ít lỗi hơn, rồi hạt giống cao hơn. Xong vòng nghỉ 30 giây rồi vào vòng sau.
+- Khán giả (`/tournaments/<id>/watch`) xem cả hai người của mỗi trận, nhiều trận cùng lúc, **trễ 30 giây**;
+  người đang thi không xem được trận của mình. Admin xem thời gian thực ở `/monitor`.
+- Cấu hình (để test/demo): `Tournaments:SpectatorDelaySeconds` (mặc định 30), `Tournaments:RoundBreakSeconds` (mặc định 30).
+
 ## Demo giải đấu một mình
 
-1. Admin tạo giải Sudoku ở `/tournaments`.
-2. Chạy bot (bot dùng `player1..8`, tự đăng ký và tự chơi cả 2 vòng):
+1. Admin tạo giải Sudoku ở `/tournaments`, giờ bắt đầu vài phút nữa.
+2. Chạy bot trước giờ bắt đầu (bot dùng `player1..8`, tự đăng ký, tự vào thi vòng loại và từng trận của mình):
 
    ```bash
    node scripts/demo-bots.mjs <tournamentId> [soBot=8] [msMoiNuoc=600]
    ```
 
-3. Admin bấm chuyển vòng ở trang giải. Hết giờ thì vòng tự đóng.
-4. Mở `/tournaments/<id>/monitor` bằng tài khoản admin để xem bàn chơi chung kết chạy live.
+3. Giải tự chạy theo giờ; admin bấm "chuyển vòng" ở trang giải để bỏ qua thời gian chờ.
+4. Mở `/tournaments/<id>/watch` để xem như khán giả (trễ 30 giây), `/monitor` bằng tài khoản admin để xem thời gian thực.
 
 ## Ai làm phần nào
 
