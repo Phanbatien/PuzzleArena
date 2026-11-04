@@ -2,7 +2,8 @@ import { api } from "@/lib/api";
 import { USE_MOCK } from "@/lib/config";
 import { mockAdminUsers } from "@/mocks/admin";
 import type { AdminUser } from "@/types/auth";
-import type { Role } from "@/types/common";
+import type { GameType, Role } from "@/types/common";
+import type { AttemptResponse, SuspiciousAttemptResponse } from "@/types/game";
 
 // Chờ một chút để khi dùng mock vẫn thấy được màn hình "đang tải".
 function delay(ms: number): Promise<void> {
@@ -52,4 +53,22 @@ export async function setUserRole(id: number, role: Role): Promise<AdminUser> {
     return updateMockUser(id, { role });
   }
   return api.patch<AdminUser>(`/api/admin/users/${id}/role`, { role });
+}
+
+// GET /api/admin/attempts/suspicious (chỉ Admin) -> danh sách lượt giải nghi vấn gian lận (BE2)
+export function getSuspiciousAttempts(
+  game?: GameType,
+  limit?: number,
+): Promise<SuspiciousAttemptResponse[]> {
+  const query = new URLSearchParams();
+  if (game) query.set("game", game);
+  if (limit !== undefined) query.set("limit", String(limit));
+  return api.get<SuspiciousAttemptResponse[]>(
+    `/api/admin/attempts/suspicious${query.size ? `?${query}` : ""}`,
+  );
+}
+
+// POST /api/admin/attempts/{id}/void (chỉ Admin) -> hủy kết quả lượt giải gian lận (BE2)
+export function voidAttempt(id: number): Promise<AttemptResponse> {
+  return api.post<AttemptResponse>(`/api/admin/attempts/${id}/void`);
 }

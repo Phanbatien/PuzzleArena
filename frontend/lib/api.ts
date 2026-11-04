@@ -131,3 +131,22 @@ export const api = {
   patch: <T>(path: string, body?: unknown) => request<T>("PATCH", path, body),
   delete: <T>(path: string) => request<T>("DELETE", path),
 };
+
+// Định dạng thông báo lỗi cho phòng chơi và trang quản trị chống gian lận
+export function formatApiError(error: unknown): string {
+  if (error instanceof ApiError) {
+    switch (error.status) {
+      case 400:
+        return "Nước đi không hợp lệ, lượt chơi đã kết thúc, hết giờ hoặc đề daily không phải hôm nay.";
+      case 401:
+        return "Phiên đăng nhập đã hết hạn hoặc chưa đăng nhập. Vui lòng đăng nhập lại.";
+      case 403:
+        return "Lượt chơi này không thuộc về bạn.";
+      case 404:
+        return "Không tìm thấy lượt chơi hoặc đề bài.";
+      default:
+        return error.message || `Yêu cầu thất bại (mã ${error.status}).`;
+    }
+  }
+  return "Đã xảy ra lỗi không xác định.";
+}
