@@ -57,7 +57,7 @@ export type Role = "Admin" | "Player"; // Player xuất hiện trong test; chỉ
 
 - `POST /api/practice` (body `{ "game": Game, "difficulty": Difficulty }`)
 - `GET /api/attempts/{id}`
-- `POST /api/daily/{puzzleId}/start`
+- `POST /api/daily/start` (body `{ "game": Game, "difficulty": Difficulty }`)
 - `POST /api/attempts/{id}/abandon`
 - `POST /api/admin/attempts/{id}/void`
 
@@ -236,16 +236,16 @@ Khi Sudoku sai không có khiên: tăng `mistakes`; lỗi thứ ba kết thúc l
 - Thành công: HTTP 200, `AttemptResponse`. Nếu lượt đang `InProgress` và chưa hết hạn, server kết thúc nó với `Status = "Failed"`. Gọi lại attempt đã kết thúc là idempotent và trả trạng thái hiện có.
 - Lỗi: 401, 403 (`"Đây không phải lượt chơi của bạn."`), 404 (`"Không tìm thấy lượt chơi."`).
 
-### `POST /api/daily/{puzzleId}/start`
+### `POST /api/daily/start`
 
 - Auth: bắt buộc; không yêu cầu admin.
-- Path: `puzzleId: int`.
-- Body: không có.
-- Thành công: HTTP 200, `AttemptResponse`. Nếu user đã có attempt (đang chơi, thắng hoặc thua) cho puzzle daily này ngoài giải, trả lại attempt mới nhất đó thay vì tạo attempt mới. **Đây không phải lỗi** — xem quy tắc daily bên dưới.
-- Lỗi:
-  - 400: puzzle daily không thuộc ngày hiện tại — `"Đề daily này không phải của hôm nay."`
-  - 401: chưa xác thực.
-  - 404: không tìm thấy daily puzzle — `"Không tìm thấy đề daily."`
+- Body: `{ "game": Game, "difficulty": Difficulty }`.
+- Thành công: HTTP 200, `AttemptResponse`.
+  - Daily **không giới hạn**: mỗi lần gọi là một lượt mới trên một đề **sinh ngẫu nhiên riêng cho user**, không trùng đề user đó từng chơi (cùng game + độ khó).
+  - Nếu user đang có lượt daily `InProgress` cùng game + độ khó thì trả lại lượt đó (không đổi đề được; muốn bỏ thì `/abandon`, tính là thua).
+- Lỗi: 400 (`"Thiếu loại game hoặc độ khó."`), 401.
+
+`GET /api/daily?game=` trả 3 thẻ (Easy/Medium/Hard): `{ gameType, difficulty, dailyDate, ratingIfSolved, ratingIfFailed, status: "NotStarted" | "InProgress", attemptId, playedToday, solvedToday }`.
 
 Ngày hiện tại trong logic dùng `DateTime.UtcNow`, không phải timezone của client.
 
@@ -298,7 +298,7 @@ Shape DTO đã xác minh từ code `backend/PuzzleArena.Api/Contracts/CheatContr
 
 ## Quy tắc daily và deadline
 
-- `POST /api/daily/{puzzleId}/start` với đề người chơi đã chơi: trả **200** kèm lượt cũ (`status` là `Solved`/`Failed`), không phải lỗi. FE thấy `status !== "InProgress"` thì hiện màn kết quả, không hiện bàn chơi.
+- `POST /api/daily/start` khi đang có lượt dở cùng game + độ khó: trả **200** kèm lượt dở đó. Ván đã kết thúc thì lần gọi sau là ván mới, đề mới.
 - `deadline`: daily và practice luôn `null` (không đếm ngược). Chỉ lượt giải đấu có `deadline`. Không có field `expiresAt`.
 - Đồng hồ dùng `serverNow` để tính độ lệch giờ client–server: `offset = Date.parse(serverNow) - thời điểm client nhận response`; thời gian còn lại = `Date.parse(deadline) - (Date.now() + offset)`.
 - Hết giờ do server quyết định: `/move` trả 400 và lượt chuyển `Failed`; FE refetch attempt để lấy `status`.

@@ -48,105 +48,93 @@ public sealed class DailyStartTests : IDisposable
         Role = Role.Player,
     };
 
-    private async Task<Puzzle> AddPuzzle(bool daily, int daysAgo = 0, Difficulty difficulty = Difficulty.Easy)
+    private Task<AttemptResult> Start(int user, Difficulty difficulty = Difficulty.Easy, GameType game = GameType.Sudoku) =>
+        _svc.StartDaily(user, game, difficulty, new GamePuzzleGenerator());
+
+    private async Task Lose(Attempt attempt)
     {
-        var puzzle = GameEngine.Generate(GameType.Sudoku, difficulty, 1);
-        puzzle.IsDaily = daily;
-        if (daily) puzzle.DailyDate = DateOnly.FromDateTime(DateTime.UtcNow).AddDays(-daysAgo);
-        _db.Puzzles.Add(puzzle);
-        await _db.SaveChangesAsync();
-        return puzzle;
+        for (int i = 0; i < 3 && attempt.Status == AttemptStatus.InProgress; i++)
+        {
+            int cell = attempt.State.IndexOf('0');
+            int wrong = attempt.Puzzle.Solution[cell] == '1' ? 2 : 1;
+            await _svc.Move(attempt.UserId, attempt.Id, cell, wrong);
+        }
     }
 
     [Fact]
-    public async Task FirstCall_CreatesInProgressAttempt()
+    public async Task FirstCall_CreatesInProgressAttempt_OnANewDailyPuzzleForToday()
     {
-        var puzzle = await AddPuzzle(daily: true);
-
-        var result = await _svc.StartDaily(_alice, puzzle.Id);
+        var result = await Start(_alice);
 
         Assert.Null(result.Error);
-        Assert.NotEqual(0, result.Attempt!.Id);
-        Assert.Equal(AttemptStatus.InProgress, result.Attempt.Status);
-        Assert.Equal(_alice, result.Attempt.UserId);
-        Assert.Equal(puzzle.Id, result.Attempt.PuzzleId);
-        Assert.Null(result.Attempt.TournamentId);
-        Assert.Null(result.Attempt.Deadline);
+        var attempt = result.Attempt!;
+        Assert.Equal(AttemptStatus.InProgress, attempt.Status);
+        Assert.Equal(_alice, attempt.UserId);
+        Assert.True(attempt.Puzzle.IsDaily);
+        Assert.Equal(DateOnly.FromDateTime(DateTime.UtcNow), attempt.Puzzle.DailyDate);
+        Assert.Equal(Difficulty.Easy, attempt.Puzzle.Difficulty);
+        Assert.Null(attempt.TournamentId);
+        Assert.Null(attempt.Deadline);
     }
 
     [Fact]
-    public async Task SecondCall_ReturnsSameAttempt_AndDoesNotCreateAnother()
+    public async Task WhilePlaying_StartReturnsTheSameAttempt_SoTheHardPuzzleCannotBeRerolled()
     {
-        var puzzle = await AddPuzzle(daily: true);
-
-        var first = await _svc.StartDaily(_alice, puzzle.Id);
-        var second = await _svc.StartDaily(_alice, puzzle.Id);
+        var first = await Start(_alice, Difficulty.Hard);
+        var second = await Start(_alice, Difficulty.Hard);
 
         Assert.Equal(first.Attempt!.Id, second.Attempt!.Id);
-        Assert.Equal(1, _db.Attempts.Count(a => a.UserId == _alice && a.PuzzleId == puzzle.Id));
+        Assert.Equal(1, _db.Attempts.Count(a => a.UserId == _alice));
     }
 
     [Fact]
-    public async Task FinishedAttempt_IsReturnedAsIs_NoSecondChance()
+    public async Task AfterAGameEnds_TheNextStartIsANewAttemptOnADifferentPuzzle()
     {
-        var puzzle = await AddPuzzle(daily: true);
-        var started = (await _svc.StartDaily(_alice, puzzle.Id)).Attempt!;
-        for (int i = 0; i < 3; i++)
+        var first = (await Start(_alice)).Attempt!;
+        await Lose(first);
+        Assert.Equal(AttemptStatus.Failed, first.Status);
+
+        var next = (await Start(_alice)).Attempt!;
+
+        Assert.NotEqual(first.Id, next.Id);
+        Assert.NotEqual(first.PuzzleId, next.PuzzleId);
+        Assert.NotEqual(first.Puzzle.Seed, next.Puzzle.Seed);
+        Assert.Equal(AttemptStatus.InProgress, next.Status);
+    }
+
+    [Fact]
+    public async Task UnlimitedPlays_NeverRepeatAPuzzleForTheSamePlayer()
+    {
+        var seeds = new List<int>();
+        for (int i = 0; i < 15; i++)
         {
-            int cell = started.State.IndexOf('0');
-            int wrong = started.Puzzle.Solution[cell] == '1' ? 2 : 1;
-            await _svc.Move(_alice, started.Id, cell, wrong);
+            var attempt = (await Start(_alice)).Attempt!;
+            seeds.Add(attempt.Puzzle.Seed);
+            await _svc.Abandon(_alice, attempt.Id);
         }
-        Assert.Equal(AttemptStatus.Failed, started.Status);
 
-        var again = await _svc.StartDaily(_alice, puzzle.Id);
-
-        Assert.Equal(started.Id, again.Attempt!.Id);
-        Assert.Equal(AttemptStatus.Failed, again.Attempt.Status);
-        Assert.Equal(1, _db.Attempts.Count(a => a.UserId == _alice && a.PuzzleId == puzzle.Id));
+        Assert.Equal(seeds.Count, seeds.Distinct().Count());
+        Assert.Equal(15, _db.Puzzles.Count(p => p.IsDaily));
     }
 
     [Fact]
-    public async Task EachUser_GetsTheirOwnAttempt()
+    public async Task EachUser_GetsTheirOwnRandomPuzzle()
     {
-        var puzzle = await AddPuzzle(daily: true);
+        var a = (await Start(_alice)).Attempt!;
+        var b = (await Start(_bob)).Attempt!;
 
-        var a = await _svc.StartDaily(_alice, puzzle.Id);
-        var b = await _svc.StartDaily(_bob, puzzle.Id);
-
-        Assert.NotEqual(a.Attempt!.Id, b.Attempt!.Id);
-        Assert.Equal(_alice, a.Attempt.UserId);
-        Assert.Equal(_bob, b.Attempt.UserId);
+        Assert.NotEqual(a.Id, b.Id);
+        Assert.NotEqual(a.PuzzleId, b.PuzzleId);
     }
 
     [Fact]
-    public async Task NonDailyPuzzle_IsRejected()
+    public async Task EachGameAndDifficulty_HasItsOwnInProgressAttempt()
     {
-        var practice = await AddPuzzle(daily: false);
+        var easy = (await Start(_alice, Difficulty.Easy)).Attempt!;
+        var hard = (await Start(_alice, Difficulty.Hard)).Attempt!;
+        var mines = (await Start(_alice, Difficulty.Easy, GameType.Minesweeper)).Attempt!;
 
-        var result = await _svc.StartDaily(_alice, practice.Id);
-
-        Assert.Equal(404, result.Status);
-        Assert.NotNull(result.Error);
-        Assert.Empty(_db.Attempts.ToList());
-    }
-
-    [Fact]
-    public async Task UnknownPuzzle_Returns404()
-    {
-        var result = await _svc.StartDaily(_alice, 99999);
-        Assert.Equal(404, result.Status);
-    }
-
-    [Fact]
-    public async Task YesterdaysDaily_IsRejected()
-    {
-        var old = await AddPuzzle(daily: true, daysAgo: 1);
-
-        var result = await _svc.StartDaily(_alice, old.Id);
-
-        Assert.Equal(400, result.Status);
-        Assert.NotNull(result.Error);
-        Assert.Empty(_db.Attempts.ToList());
+        Assert.Equal(3, new[] { easy.Id, hard.Id, mines.Id }.Distinct().Count());
+        Assert.Equal(easy.Id, (await Start(_alice, Difficulty.Easy)).Attempt!.Id);
     }
 }

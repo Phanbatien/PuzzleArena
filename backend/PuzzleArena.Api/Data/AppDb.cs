@@ -37,7 +37,8 @@ public class AppDb(DbContextOptions<AppDb> options) : DbContext(options)
         {
             entity.Property(p => p.GameType).HasConversion<string>().HasMaxLength(16);
             entity.Property(p => p.Difficulty).HasConversion<string>().HasMaxLength(16);
-            entity.HasIndex(p => new { p.GameType, p.Difficulty, p.DailyDate }).IsUnique();
+            // Daily không giới hạn: một ngày có nhiều đề cùng game + độ khó (mỗi lượt một đề riêng).
+            entity.HasIndex(p => new { p.GameType, p.Difficulty, p.DailyDate });
         });
 
         modelBuilder.Entity<Attempt>(entity =>

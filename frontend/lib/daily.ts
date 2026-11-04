@@ -9,7 +9,7 @@ import {
   mockRatings,
 } from "@/mocks/daily";
 import type { AdminUser } from "@/types/auth";
-import type { GameType } from "@/types/common";
+import type { Difficulty, GameType } from "@/types/common";
 import type {
   AttemptResponse,
   DailyPuzzle,
@@ -92,7 +92,7 @@ export async function grantBooster(
   return api.post<GrantBoosterResponse>("/api/boosters/grant", request);
 }
 
-// POST /api/daily/{puzzleId}/start -> bắt đầu hoặc lấy lại lượt chơi Daily
-export function startDaily(puzzleId: number): Promise<AttemptResponse> {
-  return api.post<AttemptResponse>(`/api/daily/${puzzleId}/start`);
+// POST /api/daily/start { game, difficulty } -> ván mới (đề ngẫu nhiên riêng) hoặc lượt đang dở
+export function startDaily(game: GameType, difficulty: Difficulty): Promise<AttemptResponse> {
+  return api.post<AttemptResponse>("/api/daily/start", { game, difficulty });
 }

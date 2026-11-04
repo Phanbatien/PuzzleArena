@@ -6,6 +6,7 @@ using Microsoft.Extensions.DependencyInjection;
 using PuzzleArena.Api.Data;
 using PuzzleArena.Api.Domain;
 using PuzzleArena.Api.Entities;
+using PuzzleArena.Api.Rating;
 using PuzzleArena.Api.Tournaments;
 
 namespace PuzzleArena.Tests;
@@ -132,12 +133,10 @@ public class TournamentTests : IClassFixture<ApiFactory>
     }
 
     [Fact]
-    public async Task Leaderboards_list_ratings_and_score_todays_solved_daily_puzzles()
+    public async Task Leaderboards_list_ratings_and_score_daily_by_elo_gained()
     {
         var player = await Client("player6");
-        var daily = await player.GetFromJsonAsync<JsonElement>("/api/daily?game=Sudoku");
-        var easy = daily.EnumerateArray().First(d => d.GetProperty("difficulty").GetString() == "Easy");
-        var start = await player.PostAsync($"/api/daily/{easy.GetProperty("id").GetInt32()}/start", null);
+        var start = await player.PostAsJsonAsync("/api/daily/start", new { game = "Sudoku", difficulty = "Easy" });
         var attempt = await start.Content.ReadFromJsonAsync<JsonElement>();
         await SolveSudoku(player, attempt, await Solution(attempt.GetProperty("puzzleId").GetInt32()));
 
@@ -148,7 +147,7 @@ public class TournamentTests : IClassFixture<ApiFactory>
 
         var day = await anonymous.GetFromJsonAsync<JsonElement>("/api/leaderboard/daily?game=Sudoku&period=day");
         var row = day.EnumerateArray().Single(r => r.GetProperty("username").GetString() == "player6");
-        Assert.Equal(1, row.GetProperty("score").GetInt32());
+        Assert.Equal(Elo.Delta(Elo.Initial, Elo.PuzzleRating(Difficulty.Easy), won: true), row.GetProperty("score").GetInt32());
         Assert.Equal(1, row.GetProperty("solvedCount").GetInt32());
         Assert.Equal(HttpStatusCode.BadRequest,
             (await anonymous.GetAsync("/api/leaderboard/daily?game=Sudoku&period=year")).StatusCode);

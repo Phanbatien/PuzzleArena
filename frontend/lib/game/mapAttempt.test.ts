@@ -16,6 +16,8 @@ const shared = {
   durationMs: null,
   serverNow: "2026-10-24T00:00:00Z",
   ratingDelta: null,
+  isDaily: false,
+  tournamentId: null,
 };
 
 describe("mapAttemptToBoard", () => {

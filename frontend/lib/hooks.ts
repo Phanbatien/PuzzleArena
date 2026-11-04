@@ -63,7 +63,7 @@ export function useAbandon(id: number) {
 
 export function useStartDaily() {
   return useMutation({
-    mutationFn: (puzzleId: number) => startDaily(puzzleId),
+    mutationFn: ({ game, difficulty }: PracticeRequest) => startDaily(game, difficulty),
   });
 }
 

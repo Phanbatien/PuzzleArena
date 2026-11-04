@@ -183,8 +183,7 @@ namespace PuzzleArena.Api.Data.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("GameType", "Difficulty", "DailyDate")
-                        .IsUnique();
+                    b.HasIndex("GameType", "Difficulty", "DailyDate");
 
                     b.ToTable("Puzzles");
                 });

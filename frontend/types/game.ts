@@ -9,15 +9,18 @@ export type { AttemptStatus, Difficulty, GameType };
 export type Game = GameType;
 
 // Một đề Daily. Frontend không nhận đáp án.
+// Một thẻ Daily cho mỗi độ khó. Chơi không giới hạn: mỗi lượt là một đề ngẫu nhiên mới của riêng mình.
+// status = "InProgress" khi đang có lượt dở (attemptId để chơi tiếp), còn lại "NotStarted".
 export type DailyPuzzle = {
-  id: number;
   gameType: GameType;
   difficulty: Difficulty;
   dailyDate: string;
   ratingIfSolved: number;
   ratingIfFailed: number;
-  status: "NotStarted" | AttemptStatus;
+  status: "NotStarted" | "InProgress";
   attemptId: number | null;
+  playedToday: number;
+  solvedToday: number;
 };
 
 export type UserRating = {
@@ -103,6 +106,8 @@ export type AttemptResponse = {
   serverNow: string;
   ratingDelta: number | null;
   board: BoardView;
+  isDaily: boolean;
+  tournamentId: number | null;
 };
 
 export type MoveResponse = {

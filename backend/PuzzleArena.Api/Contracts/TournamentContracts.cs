@@ -65,7 +65,7 @@ public record MonitorRow(
 
 public record RatingLeaderboardRow(int Rank, int UserId, string Username, int Rating, int SolvedCount);
 
-// Score: Easy 1 / Medium 2 / Hard 3 points per solved daily puzzle in the period.
+// Score: tổng Elo kiếm được từ daily trong kỳ (có thể âm). SolvedCount, TotalDurationMs chỉ tính lượt giải xong.
 public record DailyLeaderboardRow(
     int Rank,
     int UserId,

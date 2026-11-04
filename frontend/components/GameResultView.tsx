@@ -1,5 +1,10 @@
+"use client";
+
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
 import MinesweeperBoard from "./MinesweeperBoard";
+import { startDaily } from "@/lib/daily";
 import { mapMinesweeper } from "@/lib/game/mapAttempt";
 import type { AttemptResponse } from "@/types/game";
 
@@ -14,7 +19,25 @@ function formatDuration(totalMs: number): string {
   return `${String(minutes).padStart(2, "0")}:${String(remainingSeconds).padStart(2, "0")}`;
 }
 
+const primaryButton =
+  "inline-flex min-h-11 items-center justify-center rounded-xl bg-slate-900 px-6 font-semibold text-white transition-colors hover:bg-slate-800 disabled:opacity-60 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-white";
+
 export default function GameResultView({ attempt }: GameResultViewProps) {
+  const router = useRouter();
+  const [starting, setStarting] = useState(false);
+
+  // Daily chơi không giới hạn: vào thẳng ván mới (đề mới) cùng game và độ khó.
+  async function playNextDaily() {
+    setStarting(true);
+    try {
+      const next = await startDaily(attempt.game, attempt.difficulty);
+      router.push(`/play/${next.id}`);
+    } catch {
+      setStarting(false);
+      router.push("/daily");
+    }
+  }
+
   const isSolved = attempt.status === "Solved";
   const isFailedMinesweeper =
     attempt.board.game === "Minesweeper" && attempt.status === "Failed";
@@ -125,12 +148,19 @@ export default function GameResultView({ attempt }: GameResultViewProps) {
       )}
 
       <div className="flex flex-wrap items-center justify-center gap-3">
-        <Link
-          href="/practice"
-          className="inline-flex min-h-11 items-center justify-center rounded-xl bg-slate-900 px-6 font-semibold text-white transition-colors hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-white"
-        >
-          Chơi lại
-        </Link>
+        {attempt.isDaily ? (
+          <button type="button" onClick={playNextDaily} disabled={starting} className={primaryButton}>
+            {starting ? "Đang tạo đề mới..." : "Chơi ván mới"}
+          </button>
+        ) : attempt.tournamentId !== null ? (
+          <Link href={`/tournaments/${attempt.tournamentId}`} className={primaryButton}>
+            Xem kết quả giải đấu
+          </Link>
+        ) : (
+          <Link href="/practice" className={primaryButton}>
+            Chơi lại
+          </Link>
+        )}
         <Link
           href="/"
           className="inline-flex min-h-11 items-center justify-center rounded-xl border border-slate-300 bg-white px-6 font-semibold text-slate-700 transition-colors hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800"
