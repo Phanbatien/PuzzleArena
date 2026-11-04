@@ -114,7 +114,9 @@ try {
     if ($LASTEXITCODE -ne 0) { throw "Build frontend thất bại." }
 
     Write-Host "4/4 Chạy frontend..." -ForegroundColor Cyan
-    $p = Start-Process npm.cmd -ArgumentList @("--prefix", $frontend, "start") `
+    # Start-Process (PowerShell 5.1) không tự bọc ngoặc kép cho tham số có dấu cách ("KÌ 7"):
+    # truyền thư mục qua -WorkingDirectory, không qua --prefix.
+    $p = Start-Process npm.cmd -ArgumentList @("start") -WorkingDirectory $frontend `
         -RedirectStandardOutput (Join-Path $logs "frontend.log") -RedirectStandardError (Join-Path $logs "frontend.err.log") `
         -WindowStyle Hidden -PassThru
     [void]$started.Add($p)
