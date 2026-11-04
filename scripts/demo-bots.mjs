@@ -1,10 +1,11 @@
-// Demo bots: seeded players join a tournament and play both rounds, so one person can demo the
-// live ranking and the 6-board admin monitor alone. Sudoku only (the bots solve it themselves —
-// the server never hands out answers).
+// Demo bots: seeded players join a tournament and play the qualifier (if any) and every knockout
+// match they reach, so one person can demo the bracket, the 30-second-delayed spectator view and the
+// admin monitor alone. Sudoku only (the bots solve it themselves — the server never hands out answers).
 //
 //   node scripts/demo-bots.mjs <tournamentId> [bots=8] [msPerMove=600]
 //
-// Start it while the tournament is Open, then drive the stages from the admin screen.
+// Start it while the tournament is Open (before its start time). Rounds then run on the clock,
+// or the admin presses "advance" to skip waiting.
 // Needs the dev seed accounts player1..player8 (DevSeeder, Development environment only).
 
 const API = process.env.API_URL ?? "http://localhost:5000";
@@ -70,10 +71,12 @@ async function bot(n) {
   for (;;) {
     const t = await call(token, `/api/tournaments/${tournamentId}`);
     if (t.status === "Closed") return;
-    const mayPlay = t.status === "Qualifier" || (t.status === "Final" && t.isFinalist);
-    if (mayPlay && !played.has(t.status)) {
-      played.add(t.status);
-      console.log(`${name}: playing ${t.status}`);
+    // Vòng loại: một lượt. Nhánh đấu: mỗi trận đang diễn ra của mình một lượt.
+    const stage = t.status === "Qualifier" ? "qualifier"
+      : t.myMatch?.status === "Live" ? `match-${t.myMatch.matchId}` : null;
+    if (stage && !played.has(stage)) {
+      played.add(stage);
+      console.log(`${name}: playing ${stage === "qualifier" ? "qualifier" : t.myMatch.roundName}`);
       await playStage(name, token, speed).catch((e) => console.log(`${name}: ${e.message}`));
     }
     await sleep(1000);

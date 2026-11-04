@@ -8,6 +8,8 @@ public class TournamentEntry
     public int UserId { get; set; }
     public User User { get; set; } = null!;
     public DateTimeOffset RegisteredAt { get; set; }
-    public bool IsFinalist { get; set; }
+    public int? QualifierRank { get; set; }
+    public int? Seed { get; set; }          // hạt giống trong nhánh đấu; null = không vào nhánh đấu
+    public int? EliminatedInRound { get; set; }
     public int? FinalRank { get; set; }
 }
