@@ -31,7 +31,7 @@ Yêu cầu đã chốt với thầy:
 | Frontend | Next.js (App Router) · React · TypeScript · Tailwind CSS | FE |
 | Realtime | SignalR — server (C#) và client (`@microsoft/signalr`) | BE3 + FE3 |
 | Backend | ASP.NET Core Minimal API (C#) — server làm trọng tài | BE |
-| Data | PostgreSQL qua EF Core · Redis (cache bảng xếp hạng) | BE |
+| Data | SQL Server qua EF Core (SQLite khi chạy nhanh) · Redis (cache bảng xếp hạng, không bắt buộc) | BE |
 | Test | xUnit (BE) · kiểm thử tay theo checklist (FE) | cả nhóm |
 
 Cài trên máy mỗi người: Git, VS Code. BE thêm .NET SDK 10 + Docker Desktop. FE thêm Node.js 20+.
@@ -79,7 +79,7 @@ FE dùng dữ liệu giả đúng hình dạng hợp đồng cho tới khi API t
 ### Cặp A — Tài khoản, Daily, Rating, Bổ trợ
 
 **BE1**
-- [ ] Dựng phần backend của repo: solution, project API, project test, `docker-compose.yml` (PostgreSQL + Redis). **Xong trong 3 ngày đầu.**
+- [ ] Dựng phần backend của repo: solution, project API, project test, `docker-compose.yml` (Redis; database là SQL Server cài trên máy). **Xong trong 3 ngày đầu.**
 - [ ] `AppDb` (DbContext) + entity `User` + migration đầu tiên. Seed tài khoản thử `admin`, `player1`…`player8`.
 - [ ] API: `POST /api/auth/register`, `POST /api/auth/login` (trả JWT), `GET /api/me`, đăng nhập nhanh bằng tài khoản thử (chỉ bật ở môi trường dev).
 - [ ] API admin: danh sách người dùng, khóa/mở khóa, đổi vai trò. Tài khoản bị khóa không đăng nhập được.
@@ -203,7 +203,7 @@ Khi BE viết xong một API: ghi ví dụ request/response vào phần mô tả
 | 1 | Học (mục 3), bài tập khởi động. BE1 dựng repo + đăng nhập trong 3 ngày đầu. Cả 3 BE thống nhất entity và API (mục 5). | Học (mục 3), bài tập khởi động. FE1 dựng Next.js + `lib/api.ts` + bộ style trong 3 ngày đầu. FE2, FE3 vẽ phác giao diện trang mình. |
 | 2 | BE2: sinh đề 2 game + phòng chơi chạy được. BE1: daily + Elo. BE3: entity giải đấu + chuyển vòng. | FE2: 2 bàn chơi + trang chơi. FE1: đăng nhập + daily. FE3: danh sách + chi tiết giải (dữ liệu giả nếu API chưa xong). |
 | 3 | BE3: SignalR + xếp hạng + bot. BE1: nhiệm vụ & bổ trợ + admin. BE2: chống gian lận. | FE3: live + màn hình chung kết + bảng xếp hạng. FE1: hồ sơ + admin. FE2: Gợi ý/Khiên + trang gian lận. |
-| 4 | Sửa lỗi, test chéo, chạy thử PostgreSQL + Redis bằng Docker. | Sửa lỗi, giao diện điện thoại, test chéo. Cả nhóm: slide, tập demo trọn vòng ≤ 10 phút. |
+| 4 | Sửa lỗi, test chéo, chạy thử SQL Server + Redis. | Sửa lỗi, giao diện điện thoại, test chéo. Cả nhóm: slide, tập demo trọn vòng ≤ 10 phút. |
 
 Họp nhanh 15 phút, 2–3 lần mỗi tuần: mỗi người nói đã làm gì, sắp làm gì, đang kẹt ở đâu. BE và FE cùng cặp nên trao đổi hằng ngày.
 

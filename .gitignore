@@ -25,3 +25,6 @@ docs/*.m4a
 .idea/
 .vscode/
 .claude/
+
+# Log của scripts/tunnel.ps1
+.tunnel-logs/

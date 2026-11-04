@@ -2,30 +2,73 @@
 
 ASP.NET Core 10 Minimal API. Cần **.NET SDK 10**.
 
-## Chạy nhanh (không cần Docker)
+## Chạy với SQL Server (mặc định)
 
-Dùng SQLite. File `puzzlearena.db` được tạo tự động và đã có trong `.gitignore`.
+Cần SQL Server cài trên máy (Express / Developer, instance mặc định `localhost`) và đăng nhập bằng tài khoản Windows.
+Connection string mặc định (`appsettings.json`):
+
+```
+Server=localhost;Database=PuzzleArena;Trusted_Connection=True;TrustServerCertificate=True
+```
+
+```bash
+cd backend/PuzzleArena.Api
+dotnet run
+```
+
+Lần chạy đầu tự tạo database `PuzzleArena` và các bảng (migration chạy lúc khởi động).
+API chạy ở `http://localhost:5000`; `GET /api/health` thấy `{"status":"ok"}` là được.
+Frontend để `NEXT_PUBLIC_API_URL=http://localhost:5000` trong `frontend/.env.local`.
+
+Máy dùng instance có tên (ví dụ `localhost\SQLEXPRESS`) hoặc LocalDB thì đổi connection string bằng biến môi trường,
+không sửa file chung:
+
+```bash
+set ConnectionStrings__Default=Server=(localdb)\MSSQLLocalDB;Database=PuzzleArena;Trusted_Connection=True;TrustServerCertificate=True
+```
+
+Muốn làm lại dữ liệu từ đầu: xóa database `PuzzleArena` trong SSMS rồi chạy lại.
+
+### Xem database
+
+Mở **SQL Server Management Studio (SSMS)** → Server name `localhost`, Authentication *Windows Authentication*
+(nếu báo lỗi chứng chỉ thì tick *Trust server certificate*) → **Databases → PuzzleArena → Tables** → chuột phải bảng →
+*Select Top 1000 Rows*. Bảng `__EFMigrationsHistory` cho biết migration nào đã chạy.
+⚠️ Không mở cột `Puzzles.Solution` khi đang chiếu màn hình trong giải: đó là đáp án.
+
+## Chạy nhanh không cần SQL Server (SQLite)
 
 ```bash
 cd backend/PuzzleArena.Api
 dotnet run --launch-profile sqlite
 ```
 
-API chạy ở `http://localhost:5000`. Gọi `GET /api/health` thấy `{"status":"ok"}` là được.
-Frontend để `NEXT_PUBLIC_API_URL=http://localhost:5000` trong `frontend/.env.local`.
+Tạo file `puzzlearena.db` ngay trong thư mục này (đã có trong `.gitignore`). Xóa file để làm lại dữ liệu từ đầu.
 
-Muốn làm lại dữ liệu từ đầu thì tắt server, xóa `puzzlearena.db` rồi chạy lại.
+## Redis (không bắt buộc)
 
-## Chạy với PostgreSQL + Redis (giống môi trường thật)
+`docker compose up -d` chạy Redis; đặt `ConnectionStrings__Redis=localhost:6379` để cache bảng xếp hạng bằng Redis.
+Không có thì cache nằm trong bộ nhớ.
+
+## Mở ra Internet để demo (trycloudflare.com)
+
+Mọi thứ vẫn chạy trên máy bạn, kể cả SQL Server; Cloudflare chỉ mở đường hầm vào cổng web (3000, 5000),
+không mở cổng SQL Server ra ngoài.
 
 ```bash
-docker compose up -d
-cd backend/PuzzleArena.Api
-dotnet run
+powershell -ExecutionPolicy Bypass -File scripts/tunnel.ps1
 ```
 
-Database tự chạy migration lúc khởi động. Redis chỉ được dùng khi có `ConnectionStrings:Redis`,
-ví dụ `ConnectionStrings__Redis=localhost:6379`; nếu không có thì cache nằm trong bộ nhớ.
+Thêm `-Sqlite` để chạy bằng file SQLite thay cho SQL Server.
+
+Script mở 2 đường hầm (backend, frontend), chạy backend với CORS cho đúng địa chỉ frontend,
+build frontend trỏ tới địa chỉ backend, rồi in link `https://....trycloudflare.com` để gửi cho người khác.
+Ctrl+C tắt tất cả. Cần cài `cloudflared` (`winget install --id Cloudflare.cloudflared`). Log ở `.tunnel-logs/`.
+
+⚠️ Đang ở chế độ Development: ai có link cũng đăng nhập được bằng tài khoản dùng thử, kể cả admin. Chỉ mở trong lúc demo.
+
+Chạy backend ở nơi khác (VPS, Render...) thì đặt địa chỉ frontend qua `Cors__Origins__0`, `Cors__Origins__1`...
+(mặc định chỉ cho `http://localhost:3000`).
 
 ## Tài khoản dùng thử (chỉ ở môi trường Development)
 
