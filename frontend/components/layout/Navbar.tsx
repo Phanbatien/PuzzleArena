@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/components/auth/AuthProvider";
@@ -26,27 +26,27 @@ const links: NavLink[] = [
   },
 ];
 
+const subscribeNothing = () => () => {};
+
 export default function Navbar() {
   const pathname = usePathname();
   const router = useRouter();
   const { user, isReady, logout } = useAuth();
 
-  const [menuOpen, setMenuOpen] = useState(false);
-  const [mounted, setMounted] = useState(false);
+  // Menu mobile nhớ trang lúc được mở: chuyển trang là tự đóng, không cần useEffect.
+  const [menuOpenAt, setMenuOpenAt] = useState<string | null>(null);
+  const menuOpen = menuOpenAt === pathname;
+  const setMenuOpen = (open: boolean | ((open: boolean) => boolean)) =>
+    setMenuOpenAt((current) => {
+      const next = typeof open === "function" ? open(current === pathname) : open;
+      return next ? pathname : null;
+    });
 
-  // Chỉ xác nhận component đã mount sau lần render đầu tiên.
-  // Giúp server và client có cùng HTML ban đầu.
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  // Đóng menu mobile khi chuyển trang.
-  useEffect(() => {
-    setMenuOpen(false);
-  }, [pathname]);
-
-  // Chỉ sử dụng trạng thái xác thực sau khi component đã mount.
-  const authReady = mounted && isReady;
+  // Navbar nằm trong <Suspense> nên hydrate SAU AuthProvider: lúc đó isReady đã là true,
+  // khác HTML từ server. Cờ "hydrated" riêng của Navbar: false trên server và lúc Navbar hydrate,
+  // true ngay sau đó (useSyncExternalStore, không cần setState trong useEffect).
+  const hydrated = useSyncExternalStore(subscribeNothing, () => true, () => false);
+  const authReady = hydrated && isReady;
   const currentUser = authReady ? user : null;
 
   const visibleLinks = links.filter((link) => {

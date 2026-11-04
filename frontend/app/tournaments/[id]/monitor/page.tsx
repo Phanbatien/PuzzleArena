@@ -8,7 +8,7 @@ import type { HubConnection } from "@microsoft/signalr";
 import type { BoardView } from "@/types/game";
 import SudokuBoard from "@/components/SudokuBoard";
 import { api } from "@/lib/api";
-import { startConnection } from "@/lib/hub";
+import { joinGroup, startConnection } from "@/lib/hub";
 
 interface FinalistMonitor {
   userId?: number | string;
@@ -80,8 +80,8 @@ function MonitorContent() {
 
   const [finalists, setFinalists] = useState<FinalistMonitor[]>([]);
   const [connected, setConnected] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState("");
+  const [loading, setLoading] = useState(Boolean(id));
+  const [loadError, setLoadError] = useState(id ? "" : "Không tìm thấy ID giải đấu.");
   const [connectionError, setConnectionError] = useState("");
 
   const updateFinalist = useCallback((payload: BoardPayload) => {
@@ -123,11 +123,7 @@ function MonitorContent() {
   }, []);
 
   useEffect(() => {
-    if (!id) {
-      setLoading(false);
-      setLoadError("Không tìm thấy ID giải đấu.");
-      return;
-    }
+    if (!id) return;
 
     let active = true;
     let connection: HubConnection | null = null;
@@ -205,7 +201,7 @@ function MonitorContent() {
         conn.onreconnecting(reconnectHandler);
         conn.onclose(reconnectHandler);
 
-        await conn.invoke("Monitor", Number(id) || id);
+        await joinGroup(conn, "Monitor", id);
 
         if (active) {
           setConnected(true);

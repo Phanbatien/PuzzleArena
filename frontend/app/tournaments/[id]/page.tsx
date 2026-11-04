@@ -10,7 +10,7 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import type { HubConnection } from "@microsoft/signalr";
 import { api, ApiError } from "@/lib/api";
-import { startConnection } from "@/lib/hub";
+import { joinGroup, startConnection } from "@/lib/hub";
 
 type TournamentStatus =
   | "Open"
@@ -39,6 +39,8 @@ interface TournamentDetail {
   roundMinutes: number;
   qualifierStartedAt?: string;
   finalStartedAt?: string;
+  stageEndsAt?: string | null;
+  serverNow?: string;
   isRegistered?: boolean;
   standings?: StandingRow[];
 }
@@ -183,7 +185,9 @@ function TournamentDetailContent() {
   });
 
   const [isAdmin, setIsAdmin] = useState(false);
-  const [remainingSeconds, setRemainingSeconds] = useState(15 * 60);
+  const [now, setNow] = useState(() => Date.now());
+  // Giờ server - giờ máy, để đồng hồ đếm ngược theo server chứ không theo máy người xem.
+  const [clockOffset, setClockOffset] = useState(0);
   const [message, setMessage] = useState<string | null>(null);
   const [messageType, setMessageType] = useState<"success" | "error">(
     "success",
@@ -210,6 +214,7 @@ function TournamentDetailContent() {
       );
 
       if (data) {
+        if (data.serverNow) setClockOffset(Date.parse(data.serverNow) - Date.now());
         setTournament((prev) => ({
           ...prev,
           ...data,
@@ -234,6 +239,7 @@ function TournamentDetailContent() {
         );
 
         if (active && data) {
+          if (data.serverNow) setClockOffset(Date.parse(data.serverNow) - Date.now());
           setTournament((prev) => ({
             ...prev,
             ...data,
@@ -333,7 +339,7 @@ function TournamentDetailContent() {
         conn.on("stage", stageHandler);
         conn.on("progress", progressHandler);
 
-        await conn.invoke("Watch", Number(id) || id).catch((err) => {
+        await joinGroup(conn, "Watch", id).catch((err) => {
           console.warn("Không thể theo dõi giải đấu:", err);
         });
       } catch (err) {
@@ -353,18 +359,6 @@ function TournamentDetailContent() {
     };
   }, [id, reloadDetail]);
 
-  // Đặt lại đồng hồ khi bắt đầu một vòng thi mới.
-  useEffect(() => {
-    if (
-      tournament.status === "Qualifier" ||
-      tournament.status === "Final"
-    ) {
-      setRemainingSeconds(
-        Math.max(0, tournament.roundMinutes || 15) * 60,
-      );
-    }
-  }, [tournament.status, tournament.roundMinutes]);
-
   // Đếm ngược trong lúc vòng thi đang diễn ra.
   useEffect(() => {
     if (
@@ -375,11 +369,16 @@ function TournamentDetailContent() {
     }
 
     const timer = window.setInterval(() => {
-      setRemainingSeconds((seconds) => Math.max(0, seconds - 1));
+      setNow(Date.now());
     }, 1000);
 
     return () => window.clearInterval(timer);
   }, [tournament.status]);
+
+  // Không có stageEndsAt (chưa vào vòng, hoặc đang xem dữ liệu mẫu) thì hiện đủ thời gian một vòng.
+  const remainingSeconds = tournament.stageEndsAt
+    ? Math.max(0, Math.ceil((Date.parse(tournament.stageEndsAt) - now - clockOffset) / 1000))
+    : Math.max(0, tournament.roundMinutes || 15) * 60;
 
   const handleRegister = async () => {
     if (isRegistering) return;
