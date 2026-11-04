@@ -27,6 +27,23 @@ dotnet run
 Database tự chạy migration lúc khởi động. Redis chỉ được dùng khi có `ConnectionStrings:Redis`,
 ví dụ `ConnectionStrings__Redis=localhost:6379`; nếu không có thì cache nằm trong bộ nhớ.
 
+## Mở ra Internet để demo (trycloudflare.com)
+
+Mọi thứ vẫn chạy trên máy bạn (database là file SQLite ở trên); Cloudflare chỉ mở đường hầm vào máy.
+
+```bash
+powershell -ExecutionPolicy Bypass -File scripts/tunnel.ps1
+```
+
+Script mở 2 đường hầm (backend, frontend), chạy backend với CORS cho đúng địa chỉ frontend,
+build frontend trỏ tới địa chỉ backend, rồi in link `https://....trycloudflare.com` để gửi cho người khác.
+Ctrl+C tắt tất cả. Cần cài `cloudflared` (`winget install --id Cloudflare.cloudflared`). Log ở `.tunnel-logs/`.
+
+⚠️ Đang ở chế độ Development: ai có link cũng đăng nhập được bằng tài khoản dùng thử, kể cả admin. Chỉ mở trong lúc demo.
+
+Chạy backend ở nơi khác (VPS, Render...) thì đặt địa chỉ frontend qua `Cors__Origins__0`, `Cors__Origins__1`...
+(mặc định chỉ cho `http://localhost:3000`).
+
 ## Tài khoản dùng thử (chỉ ở môi trường Development)
 
 | Tài khoản | Mật khẩu | Vai trò |

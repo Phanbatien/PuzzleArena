@@ -94,10 +94,15 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     });
 builder.Services.AddAuthorization();
 
+// Địa chỉ frontend được gọi API: Cors:Origins trong appsettings, hoặc biến môi trường
+// Cors__Origins__0, Cors__Origins__1... (scripts/tunnel.ps1 đặt địa chỉ trycloudflare.com vào đây).
+var corsOrigins = builder.Configuration.GetSection("Cors:Origins").Get<string[]>() is { Length: > 0 } configured
+    ? configured
+    : ["http://localhost:3000"];
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("Frontend", policy =>
-        policy.WithOrigins("http://localhost:3000")
+        policy.WithOrigins(corsOrigins)
             .AllowAnyHeader()
             .WithMethods("GET", "POST", "PATCH")
             .AllowCredentials()); // SignalR client gửi kèm credentials khi negotiate
