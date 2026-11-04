@@ -7,12 +7,7 @@ import { api, ApiError } from "@/lib/api";
 
 type GameType = "Sudoku" | "Minesweeper";
 type Difficulty = "Easy" | "Medium" | "Hard";
-type TournamentStatus =
-  | "Open"
-  | "Qualifier"
-  | "QualifierDone"
-  | "Final"
-  | "Closed";
+type TournamentStatus = "Open" | "Qualifier" | "Knockout" | "Closed";
 
 interface TournamentItem {
   id: number | string;
@@ -20,9 +15,30 @@ interface TournamentItem {
   gameType: GameType;
   difficulty: Difficulty;
   status: TournamentStatus;
-  finalistCount: number;
+  startsAt: string;
+  bracketSize: number;
   roundMinutes: number;
   participantCount?: number;
+  formatSummary?: string;
+}
+
+const BRACKET_SIZES = [4, 8, 16, 32];
+
+// Giá trị cho <input type="datetime-local"> (giờ máy người dùng), mặc định 1 giờ nữa, làm tròn phút.
+function defaultStartsAt() {
+  const d = new Date(Date.now() + 60 * 60 * 1000);
+  d.setSeconds(0, 0);
+  return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+}
+
+function formatStart(iso: string) {
+  return new Date(iso).toLocaleString("vi-VN", {
+    weekday: "short",
+    day: "2-digit",
+    month: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 const MOCK_TOURNAMENTS: TournamentItem[] = [
@@ -31,8 +47,9 @@ const MOCK_TOURNAMENTS: TournamentItem[] = [
     name: "Giải Vô Địch Sudoku Mùa Thu 2026",
     gameType: "Sudoku",
     difficulty: "Hard",
-    status: "Qualifier",
-    finalistCount: 6,
+    status: "Knockout",
+    startsAt: "2026-11-06T13:00:00Z",
+    bracketSize: 16,
     roundMinutes: 15,
     participantCount: 32,
   },
@@ -42,7 +59,8 @@ const MOCK_TOURNAMENTS: TournamentItem[] = [
     gameType: "Sudoku",
     difficulty: "Easy",
     status: "Open",
-    finalistCount: 6,
+    startsAt: "2026-11-12T12:30:00Z",
+    bracketSize: 8,
     roundMinutes: 10,
     participantCount: 18,
   },
@@ -52,7 +70,8 @@ const MOCK_TOURNAMENTS: TournamentItem[] = [
     gameType: "Minesweeper",
     difficulty: "Medium",
     status: "Closed",
-    finalistCount: 6,
+    startsAt: "2026-10-30T14:00:00Z",
+    bracketSize: 32,
     roundMinutes: 15,
     participantCount: 45,
   },
@@ -76,15 +95,8 @@ const STATUS_LABEL: Record<
     bar: "bg-amber-400",
     dot: "bg-amber-300",
   },
-  QualifierDone: {
-    text: "Chờ chung kết",
-    badge:
-      "border-violet-400/20 bg-violet-400/10 text-violet-300",
-    bar: "bg-violet-400",
-    dot: "bg-violet-300",
-  },
-  Final: {
-    text: "Đang thi chung kết",
+  Knockout: {
+    text: "Đang đấu loại trực tiếp",
     badge:
       "border-rose-400/20 bg-rose-400/10 text-rose-300",
     bar: "bg-rose-400",
@@ -112,8 +124,11 @@ export default function TournamentsPage() {
   const [gameType, setGameType] = useState<GameType>("Sudoku");
   const [difficulty, setDifficulty] =
     useState<Difficulty>("Medium");
-  const [finalistCount, setFinalistCount] = useState(6);
-  const [roundMinutes, setRoundMinutes] = useState(15);
+  const [bracketSize, setBracketSize] = useState(16);
+  const [roundMinutes, setRoundMinutes] = useState(10);
+  // Đặt giá trị mặc định lúc mở form (không gọi Date.now() khi render: trang này được prerender trên server).
+  const [startsAt, setStartsAt] = useState("");
+  const [description, setDescription] = useState("");
 
   const [statusFilter, setStatusFilter] = useState<
     "All" | TournamentStatus
@@ -163,13 +178,13 @@ export default function TournamentsPage() {
       return;
     }
 
-    if (finalistCount < 2 || finalistCount > 12) {
-      setErrorMsg("Số người vào chung kết phải từ 2 đến 12.");
+    if (!startsAt || Number.isNaN(new Date(startsAt).getTime())) {
+      setErrorMsg("Vui lòng chọn giờ bắt đầu.");
       return;
     }
 
-    if (roundMinutes < 3 || roundMinutes > 60) {
-      setErrorMsg("Thời gian mỗi vòng phải từ 3 đến 60 phút.");
+    if (roundMinutes < 1 || roundMinutes > 60) {
+      setErrorMsg("Thời gian mỗi trận phải từ 1 đến 60 phút.");
       return;
     }
 
@@ -180,11 +195,14 @@ export default function TournamentsPage() {
         name: name.trim(),
         gameType,
         difficulty,
-        finalistCount,
+        startsAt: new Date(startsAt).toISOString(),
+        bracketSize,
         roundMinutes,
+        description: description.trim(),
       });
 
       setName("");
+      setDescription("");
       setShowCreateForm(false);
 
       const updated =
@@ -203,7 +221,8 @@ export default function TournamentsPage() {
             gameType,
             difficulty,
             status: "Open",
-            finalistCount,
+            startsAt: new Date(startsAt).toISOString(),
+            bracketSize,
             roundMinutes,
             participantCount: 0,
           },
@@ -238,7 +257,7 @@ export default function TournamentsPage() {
   const runningCount = tournaments.filter(
     (tournament) =>
       tournament.status === "Qualifier" ||
-      tournament.status === "Final",
+      tournament.status === "Knockout",
   ).length;
 
   return (
@@ -269,9 +288,9 @@ export default function TournamentsPage() {
               </h1>
 
               <p className="mt-4 max-w-2xl text-sm leading-7 text-slate-400 sm:text-base">
-                Tranh tài cùng cộng đồng, vượt qua vòng loại và giành
-                suất vào chung kết. Mỗi trận đấu là một cơ hội để
-                khẳng định bản lĩnh của bạn.
+                Đấu loại trực tiếp 1-1: hai người cùng một đề, ai giải xong
+                trước đi tiếp. Không tham gia vẫn xem được các trận đang diễn
+                ra (trễ 30 giây để giữ công bằng).
               </p>
             </div>
 
@@ -279,6 +298,7 @@ export default function TournamentsPage() {
               <button
                 type="button"
                 onClick={() => {
+                  if (!startsAt) setStartsAt(defaultStartsAt());
                   setShowCreateForm((previous) => !previous);
                   setErrorMsg(null);
                 }}
@@ -337,7 +357,7 @@ export default function TournamentsPage() {
               {runningCount}
             </p>
             <p className="mt-1 text-xs text-slate-500">
-              Vòng loại hoặc chung kết
+              Vòng loại hoặc nhánh đấu
             </p>
           </div>
         </section>
@@ -437,25 +457,45 @@ export default function TournamentsPage() {
 
                 <div>
                   <label
-                    htmlFor="tournament-finalists"
+                    htmlFor="tournament-starts"
                     className="mb-2 block text-xs font-bold text-slate-300"
                   >
-                    Số người vào chung kết
+                    Giờ bắt đầu
                   </label>
                   <input
-                    id="tournament-finalists"
-                    type="number"
-                    min={2}
-                    max={12}
+                    id="tournament-starts"
+                    type="datetime-local"
                     required
-                    value={finalistCount}
-                    onChange={(e) =>
-                      setFinalistCount(Number(e.target.value))
-                    }
+                    value={startsAt}
+                    onChange={(e) => setStartsAt(e.target.value)}
                     className="w-full border border-slate-700 bg-slate-950/70 px-4 py-3 text-sm"
                   />
                   <p className="mt-1.5 text-xs text-slate-500">
-                    Từ 2 đến 12 người.
+                    Đăng ký đóng lúc này, giải tự bắt đầu.
+                  </p>
+                </div>
+
+                <div>
+                  <label
+                    htmlFor="tournament-bracket"
+                    className="mb-2 block text-xs font-bold text-slate-300"
+                  >
+                    Số suất nhánh đấu
+                  </label>
+                  <select
+                    id="tournament-bracket"
+                    value={bracketSize}
+                    onChange={(e) => setBracketSize(Number(e.target.value))}
+                    className="w-full border border-slate-700 bg-slate-950/70 px-4 py-3 text-sm"
+                  >
+                    {BRACKET_SIZES.map((size) => (
+                      <option key={size} value={size}>
+                        {size} người
+                      </option>
+                    ))}
+                  </select>
+                  <p className="mt-1.5 text-xs text-slate-500">
+                    Đông hơn số này thì có vòng loại trước.
                   </p>
                 </div>
 
@@ -464,12 +504,12 @@ export default function TournamentsPage() {
                     htmlFor="tournament-duration"
                     className="mb-2 block text-xs font-bold text-slate-300"
                   >
-                    Thời gian mỗi vòng (phút)
+                    Thời gian mỗi trận (phút)
                   </label>
                   <input
                     id="tournament-duration"
                     type="number"
-                    min={3}
+                    min={1}
                     max={60}
                     required
                     value={roundMinutes}
@@ -479,8 +519,26 @@ export default function TournamentsPage() {
                     className="w-full border border-slate-700 bg-slate-950/70 px-4 py-3 text-sm"
                   />
                   <p className="mt-1.5 text-xs text-slate-500">
-                    Từ 3 đến 60 phút.
+                    Từ 1 đến 60 phút, áp dụng cho vòng loại và mỗi trận.
                   </p>
+                </div>
+
+                <div className="md:col-span-2 lg:col-span-3">
+                  <label
+                    htmlFor="tournament-description"
+                    className="mb-2 block text-xs font-bold text-slate-300"
+                  >
+                    Luật và hình thức tham gia (không bắt buộc)
+                  </label>
+                  <textarea
+                    id="tournament-description"
+                    maxLength={1000}
+                    rows={3}
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    placeholder="Ví dụ: Mở cho mọi người chơi. Có mặt trước giờ bắt đầu 5 phút."
+                    className="w-full border border-slate-700 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none placeholder:text-slate-600 focus:border-violet-400"
+                  />
                 </div>
               </div>
 
@@ -543,8 +601,7 @@ export default function TournamentsPage() {
                 <option value="All">Tất cả giải đấu</option>
                 <option value="Open">Mở đăng ký</option>
                 <option value="Qualifier">Đang thi vòng loại</option>
-                <option value="QualifierDone">Chờ chung kết</option>
-                <option value="Final">Đang thi chung kết</option>
+                <option value="Knockout">Đang đấu loại trực tiếp</option>
                 <option value="Closed">Đã kết thúc</option>
               </select>
             </div>
@@ -630,10 +687,10 @@ export default function TournamentsPage() {
                           </span>
                           <div>
                             <p className="text-xs text-slate-500">
-                              Thời gian mỗi vòng
+                              Bắt đầu · mỗi trận
                             </p>
                             <p className="mt-0.5 text-sm font-bold text-slate-200">
-                              {tourney.roundMinutes} phút
+                              {formatStart(tourney.startsAt)} · {tourney.roundMinutes} phút
                             </p>
                           </div>
                         </div>
@@ -644,10 +701,10 @@ export default function TournamentsPage() {
                           </span>
                           <div>
                             <p className="text-xs text-slate-500">
-                              Suất vào chung kết
+                              Hình thức
                             </p>
                             <p className="mt-0.5 text-sm font-bold text-slate-200">
-                              Top {tourney.finalistCount ?? 6}
+                              Loại trực tiếp 1-1, tối đa {tourney.bracketSize} người
                             </p>
                           </div>
                         </div>
@@ -681,6 +738,17 @@ export default function TournamentsPage() {
                           {isOpen ? "Khám phá & tham gia" : "Xem chi tiết"}
                           <span>→</span>
                         </Link>
+
+                        {(tourney.status === "Qualifier" || tourney.status === "Knockout") && (
+                          <Link
+                            href={`/tournaments/${tourney.id}/watch`}
+                            title="Xem trực tiếp (trễ 30 giây)"
+                            aria-label={`Xem trực tiếp ${tourney.name}`}
+                            className="inline-flex min-h-11 w-12 shrink-0 items-center justify-center rounded-xl border border-slate-700 bg-slate-900/80 text-lg text-slate-300 transition hover:border-rose-400/40 hover:bg-rose-400/10 hover:text-rose-200"
+                          >
+                            👁️
+                          </Link>
+                        )}
 
                         {isAdmin && (
                           <Link

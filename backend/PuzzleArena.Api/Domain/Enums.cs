@@ -27,20 +27,20 @@ public enum AttemptStatus
     Failed,
 }
 
+// BE3: Open (đăng ký) -> Qualifier (chỉ khi đông người) -> Knockout (nhánh loại trực tiếp) -> Closed.
 public enum TournamentStatus
 {
     Open,
     Qualifier,
-    QualifierDone,
-    Final,
+    Knockout,
     Closed,
 }
 
-// BE3: which round a TournamentPuzzle belongs to.
-public enum TournamentStage
+public enum MatchStatus
 {
-    Qualifier,
-    Final,
+    Pending,
+    Live,
+    Done,
 }
 
 public enum BoosterType

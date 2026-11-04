@@ -1,11 +1,12 @@
-using PuzzleArena.Api.Domain;
-
 namespace PuzzleArena.Api.Tournaments;
 
-/// <summary>Hết giờ vòng thì tự chuyển vòng, không cần admin bấm. Kiểm tra mỗi vài giây.</summary>
+/// <summary>
+/// Giải chạy theo giờ, không cần admin bấm: tới giờ thì bắt đầu, hết giờ thì đóng vòng loại / phân thắng thua trận,
+/// xong vòng thì nghỉ rồi vào vòng sau. Kiểm tra mỗi vài giây.
+/// </summary>
 public sealed class TournamentClock(IServiceScopeFactory scopes, ILogger<TournamentClock> log) : BackgroundService
 {
-    private static readonly TimeSpan Every = TimeSpan.FromSeconds(5);
+    private static readonly TimeSpan Every = TimeSpan.FromSeconds(3);
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -28,11 +29,11 @@ public sealed class TournamentClock(IServiceScopeFactory scopes, ILogger<Tournam
         using var scope = scopes.CreateScope();
         var tournaments = scope.ServiceProvider.GetRequiredService<TournamentService>();
         var events = scope.ServiceProvider.GetRequiredService<TournamentEvents>();
-        foreach (var id in await tournaments.ExpiredRounds(ct))
+        foreach (var id in await tournaments.ActiveIds(ct))
         {
             if (await tournaments.Load(id, ct) is not { } t) continue;
-            if (await tournaments.Advance(t, ct) is null)
-                await events.StageChanged(t.Id, t.Status, ct);
+            if (await tournaments.Tick(t, ct))
+                await events.Bracket(t.Id, t.Status, ct);
         }
     }
 }

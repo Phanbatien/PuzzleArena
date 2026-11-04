@@ -1,6 +1,4 @@
 using Microsoft.AspNetCore.SignalR;
-using Microsoft.EntityFrameworkCore;
-using PuzzleArena.Api.Data;
 using PuzzleArena.Api.Domain;
 using PuzzleArena.Api.Entities;
 using PuzzleArena.Api.Games;
@@ -8,9 +6,11 @@ using PuzzleArena.Api.Hubs;
 
 namespace PuzzleArena.Api.Tournaments;
 
-/// <summary>Phát realtime sau mỗi thay đổi của một lượt trong giải đấu (gọi từ AttemptService của BE2).</summary>
+/// <summary>
+/// Gọi từ AttemptService của BE2 sau mỗi thay đổi của một lượt trong giải: phân thắng thua trận đấu,
+/// rồi phát realtime. Khán giả không nhận bàn chơi qua đây (họ xem trễ qua GET /live); chỉ admin nhận "board".
+/// </summary>
 public sealed class TournamentEvents(
-    AppDb db,
     IHubContext<ArenaHub> hub,
     IServiceProvider services,
     ILogger<TournamentEvents> log) : IAttemptEvents
@@ -23,40 +23,34 @@ public sealed class TournamentEvents(
 
         try
         {
-            await Broadcast(attempt, id, ct);
+            // TournamentService cần AttemptService, AttemptService cần lớp này: lấy lúc chạy để tránh vòng phụ thuộc.
+            var tournaments = services.GetRequiredService<TournamentService>();
+            var decided = await tournaments.OnAttemptChanged(attempt, ct);
+            if (await tournaments.Load(id, ct) is not { } t)
+                return;
+
+            if (attempt.PuzzleId == t.QualifierPuzzleId)
+                await hub.Clients.Group(ArenaHub.Public(id))
+                    .SendAsync("progress", await tournaments.QualifierStandings(t, ct), ct);
+
+            var username = t.Entries.First(e => e.UserId == attempt.UserId).User.Username;
+            var matchId = await tournaments.MatchIdOf(attempt, ct);
+            await hub.Clients.Group(ArenaHub.Monitors(id))
+                .SendAsync("board", TournamentService.ToMonitorRow(attempt, username, matchId, null), ct);
+
+            if (decided)
+                await Bracket(id, t.Status, ct);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            log.LogWarning(ex, "Could not broadcast attempt {AttemptId} of tournament {TournamentId}.", attempt.Id, id);
+            log.LogWarning(ex, "Could not handle attempt {AttemptId} of tournament {TournamentId}.", attempt.Id, id);
         }
     }
 
-    private async Task Broadcast(Attempt attempt, int id, CancellationToken ct)
+    /// <summary>Nhánh đấu hoặc trạng thái giải đổi: FE tải lại GET /api/tournaments/{id}.</summary>
+    public async Task Bracket(int tournamentId, TournamentStatus status, CancellationToken ct = default)
     {
-
-        // TournamentService cần AttemptService, AttemptService cần lớp này: lấy lúc chạy để tránh vòng phụ thuộc.
-        var tournaments = services.GetRequiredService<TournamentService>();
-        if (await tournaments.Load(id, ct) is not { } t)
-            return;
-
-        var stage = t.Puzzles.FirstOrDefault(p => p.PuzzleId == attempt.PuzzleId)?.Stage;
-        if (stage is null)
-            return;
-
-        await hub.Clients.Group(ArenaHub.Public(id))
-            .SendAsync("progress", await tournaments.Standings(t, stage.Value, ct), ct);
-
-        if (stage != TournamentStage.Final)
-            return;
-
-        var finalAttempts = await db.Attempts.AsNoTracking()
-            .Where(a => a.TournamentId == id && a.PuzzleId == attempt.PuzzleId)
-            .ToListAsync(ct);
-        var username = t.Entries.First(e => e.UserId == attempt.UserId).User.Username;
-        await hub.Clients.Group(ArenaHub.Monitors(id))
-            .SendAsync("board", TournamentService.ToMonitorRow(attempt, username, finalAttempts), ct);
+        await hub.Clients.Group(ArenaHub.Public(tournamentId)).SendAsync("stage", status.ToString(), ct);
+        await hub.Clients.Group(ArenaHub.Public(tournamentId)).SendAsync("bracket", tournamentId, ct);
     }
-
-    public Task StageChanged(int tournamentId, TournamentStatus status, CancellationToken ct = default) =>
-        hub.Clients.Group(ArenaHub.Public(tournamentId)).SendAsync("stage", status.ToString(), ct);
 }
