@@ -11,6 +11,7 @@ import {
 import type { AdminUser } from "@/types/auth";
 import type { GameType } from "@/types/common";
 import type {
+  AttemptResponse,
   DailyPuzzle,
   GrantBoosterRequest,
   GrantBoosterResponse,
@@ -89,4 +90,9 @@ export async function grantBooster(
     return { type: request.type, amount: base + request.amount };
   }
   return api.post<GrantBoosterResponse>("/api/boosters/grant", request);
+}
+
+// POST /api/daily/{puzzleId}/start -> bắt đầu hoặc lấy lại lượt chơi Daily
+export function startDaily(puzzleId: number): Promise<AttemptResponse> {
+  return api.post<AttemptResponse>(`/api/daily/${puzzleId}/start`);
 }
