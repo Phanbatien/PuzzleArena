@@ -1,24 +1,7 @@
+# Database là SQL Server cài trên máy (instance mặc định, đăng nhập Windows): xem backend/README.md.
+# Docker chỉ còn Redis, không bắt buộc (không có Redis thì cache bảng xếp hạng nằm trong bộ nhớ).
 services:
-  postgres:
-    image: postgres:16
-    environment:
-      POSTGRES_USER: puzzle
-      POSTGRES_PASSWORD: puzzle
-      POSTGRES_DB: puzzlearena
-    ports:
-      - "5433:5432"
-    volumes:
-      - puzzle_pg:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U puzzle -d puzzlearena"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-
   redis:
     image: redis:7
     ports:
       - "6379:6379"
-
-volumes:
-  puzzle_pg:

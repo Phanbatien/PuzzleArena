@@ -3,7 +3,8 @@
   Mở PuzzleArena ra Internet qua Cloudflare Quick Tunnel (trycloudflare.com) để demo.
 
 .DESCRIPTION
-  Mọi thứ vẫn chạy trên máy này (backend, frontend, database SQLite). Script:
+  Mọi thứ vẫn chạy trên máy này (backend, frontend, database). Database mặc định là SQL Server trên máy
+  (ConnectionStrings:Default); thêm -Sqlite để dùng file SQLite. Cổng SQL Server KHÔNG bị mở ra ngoài. Script:
     1. mở 2 đường hầm: backend (cổng 5000) và frontend (cổng 3000), lấy 2 địa chỉ *.trycloudflare.com;
     2. chạy backend với CORS chỉ cho phép địa chỉ frontend đó (Cors__Origins__0);
     3. build frontend trỏ tới địa chỉ backend (NEXT_PUBLIC_API_URL) rồi chạy bản build (npm start);
@@ -13,7 +14,10 @@
 
 .EXAMPLE
   powershell -ExecutionPolicy Bypass -File scripts\tunnel.ps1
+.EXAMPLE
+  powershell -ExecutionPolicy Bypass -File scripts\tunnel.ps1 -Sqlite
 #>
+param([switch]$Sqlite)
 
 $ErrorActionPreference = "Stop"
 $root = Split-Path $PSScriptRoot -Parent
@@ -92,10 +96,13 @@ try {
     Write-Host "    backend : $backendUrl"
     Write-Host "    frontend: $frontendUrl"
 
-    Write-Host "2/4 Chạy backend (SQLite, CORS cho phép $frontendUrl)..." -ForegroundColor Cyan
+    $launchProfile = "http"
+    $database = "SQL Server (ConnectionStrings:Default)"
+    if ($Sqlite) { $launchProfile = "sqlite"; $database = "SQLite ($api\puzzlearena.db)" }
+    Write-Host "2/4 Chạy backend ($database, CORS cho phép $frontendUrl)..." -ForegroundColor Cyan
     $env:Cors__Origins__0 = $frontendUrl
     $env:Cors__Origins__1 = "http://localhost:3000"
-    $p = Start-Process dotnet -ArgumentList @("run", "--launch-profile", "sqlite") -WorkingDirectory $api `
+    $p = Start-Process dotnet -ArgumentList @("run", "--launch-profile", $launchProfile) -WorkingDirectory $api `
         -RedirectStandardOutput (Join-Path $logs "backend.log") -RedirectStandardError (Join-Path $logs "backend.err.log") `
         -WindowStyle Hidden -PassThru
     [void]$started.Add($p)
@@ -115,7 +122,7 @@ try {
 
     Write-Host ""
     Write-Host "Gửi link này cho người khác: $frontendUrl" -ForegroundColor Green
-    Write-Host "(API: $backendUrl  ·  database: $api\puzzlearena.db)"
+    Write-Host "(API: $backendUrl  ·  database: $database)"
     Write-Host ""
     Write-Host "CẢNH BÁO: đang chạy chế độ Development. Ai có link cũng đăng nhập được bằng tài khoản dùng thử," -ForegroundColor Yellow
     Write-Host "kể cả admin (mật khẩu 123456). Chỉ mở trong lúc demo." -ForegroundColor Yellow

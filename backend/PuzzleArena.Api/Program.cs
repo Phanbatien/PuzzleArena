@@ -26,7 +26,7 @@ if (!string.IsNullOrWhiteSpace(sqlite))
     builder.Services.AddDbContext<AppDb>(options => options.UseSqlite(sqlite));
 else
     builder.Services.AddDbContext<AppDb>(options =>
-        options.UseNpgsql(builder.Configuration.GetConnectionString("Default")));
+        options.UseSqlServer(builder.Configuration.GetConnectionString("Default")));
 
 builder.Services.AddSingleton<IPasswordHasher<User>, PasswordHasher<User>>();
 builder.Services.AddSingleton<IPuzzleGenerator, GamePuzzleGenerator>();
