@@ -8,7 +8,9 @@ public sealed class AppDbFactory : IDesignTimeDbContextFactory<AppDb>
     public AppDb CreateDbContext(string[] args)
     {
         var options = new DbContextOptionsBuilder<AppDb>()
-            .UseNpgsql("Host=localhost;Port=5433;Database=puzzlearena;Username=puzzle;Password=puzzle")
+            // Chỉ dùng cho lệnh dotnet ef (tạo migration). Chạy app thì lấy ConnectionStrings:Default.
+            .UseSqlServer(Environment.GetEnvironmentVariable("ConnectionStrings__Default")
+                ?? "Server=localhost;Database=PuzzleArena;Trusted_Connection=True;TrustServerCertificate=True")
             .Options;
         return new AppDb(options);
     }

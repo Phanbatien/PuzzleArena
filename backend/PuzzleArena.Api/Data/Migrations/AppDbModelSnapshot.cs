@@ -2,8 +2,8 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
-using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using PuzzleArena.Api.Data;
 
 #nullable disable
@@ -18,60 +18,60 @@ namespace PuzzleArena.Api.Data.Migrations
 #pragma warning disable 612, 618
             modelBuilder
                 .HasAnnotation("ProductVersion", "10.0.13")
-                .HasAnnotation("Relational:MaxIdentifierLength", 63);
+                .HasAnnotation("Relational:MaxIdentifierLength", 128);
 
-            NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
+            SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
 
             modelBuilder.Entity("PuzzleArena.Api.Entities.Attempt", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
+                        .HasColumnType("int");
 
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
                     b.Property<DateTimeOffset?>("Deadline")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("datetimeoffset");
 
                     b.Property<long?>("DurationMs")
                         .HasColumnType("bigint");
 
                     b.Property<DateTimeOffset?>("FinishedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("datetimeoffset");
 
                     b.Property<int>("Mistakes")
-                        .HasColumnType("integer");
+                        .HasColumnType("int");
 
                     b.Property<string>("MoveLog")
                         .IsRequired()
-                        .HasColumnType("text");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<int>("Progress")
-                        .HasColumnType("integer");
+                        .HasColumnType("int");
 
                     b.Property<int>("PuzzleId")
-                        .HasColumnType("integer");
+                        .HasColumnType("int");
 
                     b.Property<int>("Score")
-                        .HasColumnType("integer");
+                        .HasColumnType("int");
 
                     b.Property<DateTimeOffset>("StartedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("datetimeoffset");
 
                     b.Property<string>("State")
                         .IsRequired()
-                        .HasColumnType("text");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasMaxLength(16)
-                        .HasColumnType("character varying(16)");
+                        .HasColumnType("nvarchar(16)");
 
                     b.Property<int?>("TournamentId")
-                        .HasColumnType("integer");
+                        .HasColumnType("int");
 
                     b.Property<int>("UserId")
-                        .HasColumnType("integer");
+                        .HasColumnType("int");
 
                     b.HasKey("Id");
 
@@ -88,21 +88,21 @@ namespace PuzzleArena.Api.Data.Migrations
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
+                        .HasColumnType("int");
 
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
                     b.Property<int>("AttemptId")
-                        .HasColumnType("integer");
+                        .HasColumnType("int");
 
                     b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("datetimeoffset");
 
                     b.Property<int>("Delta")
-                        .HasColumnType("integer");
+                        .HasColumnType("int");
 
                     b.Property<int>("UserId")
-                        .HasColumnType("integer");
+                        .HasColumnType("int");
 
                     b.HasKey("Id");
 
@@ -116,28 +116,28 @@ namespace PuzzleArena.Api.Data.Migrations
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
+                        .HasColumnType("int");
 
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
                     b.Property<int>("Amount")
-                        .HasColumnType("integer");
+                        .HasColumnType("int");
 
                     b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("datetimeoffset");
 
                     b.Property<string>("Reason")
                         .IsRequired()
                         .HasMaxLength(64)
-                        .HasColumnType("character varying(64)");
+                        .HasColumnType("nvarchar(64)");
 
                     b.Property<string>("Type")
                         .IsRequired()
                         .HasMaxLength(16)
-                        .HasColumnType("character varying(16)");
+                        .HasColumnType("nvarchar(16)");
 
                     b.Property<int>("UserId")
-                        .HasColumnType("integer");
+                        .HasColumnType("int");
 
                     b.HasKey("Id");
 
@@ -150,13 +150,13 @@ namespace PuzzleArena.Api.Data.Migrations
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
+                        .HasColumnType("int");
 
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
                     b.Property<string>("BoardConfig")
                         .IsRequired()
-                        .HasColumnType("text");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<DateOnly?>("DailyDate")
                         .HasColumnType("date");
@@ -164,22 +164,22 @@ namespace PuzzleArena.Api.Data.Migrations
                     b.Property<string>("Difficulty")
                         .IsRequired()
                         .HasMaxLength(16)
-                        .HasColumnType("character varying(16)");
+                        .HasColumnType("nvarchar(16)");
 
                     b.Property<string>("GameType")
                         .IsRequired()
                         .HasMaxLength(16)
-                        .HasColumnType("character varying(16)");
+                        .HasColumnType("nvarchar(16)");
 
                     b.Property<bool>("IsDaily")
-                        .HasColumnType("boolean");
+                        .HasColumnType("bit");
 
                     b.Property<int>("Seed")
-                        .HasColumnType("integer");
+                        .HasColumnType("int");
 
                     b.Property<string>("Solution")
                         .IsRequired()
-                        .HasColumnType("text");
+                        .HasColumnType("nvarchar(max)");
 
                     b.HasKey("Id");
 
@@ -192,65 +192,65 @@ namespace PuzzleArena.Api.Data.Migrations
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
+                        .HasColumnType("int");
 
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
                     b.Property<int>("BracketSize")
-                        .HasColumnType("integer");
+                        .HasColumnType("int");
 
                     b.Property<string>("ClosedNote")
                         .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
+                        .HasColumnType("nvarchar(200)");
 
                     b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("datetimeoffset");
 
                     b.Property<int>("CurrentRound")
-                        .HasColumnType("integer");
+                        .HasColumnType("int");
 
                     b.Property<string>("Description")
                         .IsRequired()
                         .HasMaxLength(1000)
-                        .HasColumnType("character varying(1000)");
+                        .HasColumnType("nvarchar(1000)");
 
                     b.Property<string>("Difficulty")
                         .IsRequired()
                         .HasMaxLength(16)
-                        .HasColumnType("character varying(16)");
+                        .HasColumnType("nvarchar(16)");
 
                     b.Property<string>("GameType")
                         .IsRequired()
                         .HasMaxLength(16)
-                        .HasColumnType("character varying(16)");
+                        .HasColumnType("nvarchar(16)");
 
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(80)
-                        .HasColumnType("character varying(80)");
+                        .HasColumnType("nvarchar(80)");
 
                     b.Property<int?>("QualifierPuzzleId")
-                        .HasColumnType("integer");
+                        .HasColumnType("int");
 
                     b.Property<DateTimeOffset?>("QualifierStartedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("datetimeoffset");
 
                     b.Property<int>("RoundCount")
-                        .HasColumnType("integer");
+                        .HasColumnType("int");
 
                     b.Property<int>("RoundMinutes")
-                        .HasColumnType("integer");
+                        .HasColumnType("int");
 
                     b.Property<DateTimeOffset?>("RoundStartsAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("datetimeoffset");
 
                     b.Property<DateTimeOffset>("StartsAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("datetimeoffset");
 
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasMaxLength(16)
-                        .HasColumnType("character varying(16)");
+                        .HasColumnType("nvarchar(16)");
 
                     b.HasKey("Id");
 
@@ -265,30 +265,30 @@ namespace PuzzleArena.Api.Data.Migrations
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
+                        .HasColumnType("int");
 
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
                     b.Property<int?>("EliminatedInRound")
-                        .HasColumnType("integer");
+                        .HasColumnType("int");
 
                     b.Property<int?>("FinalRank")
-                        .HasColumnType("integer");
+                        .HasColumnType("int");
 
                     b.Property<int?>("QualifierRank")
-                        .HasColumnType("integer");
+                        .HasColumnType("int");
 
                     b.Property<DateTimeOffset>("RegisteredAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("datetimeoffset");
 
                     b.Property<int?>("Seed")
-                        .HasColumnType("integer");
+                        .HasColumnType("int");
 
                     b.Property<int>("TournamentId")
-                        .HasColumnType("integer");
+                        .HasColumnType("int");
 
                     b.Property<int>("UserId")
-                        .HasColumnType("integer");
+                        .HasColumnType("int");
 
                     b.HasKey("Id");
 
@@ -304,57 +304,57 @@ namespace PuzzleArena.Api.Data.Migrations
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
+                        .HasColumnType("int");
 
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
                     b.Property<int?>("Attempt1Id")
-                        .HasColumnType("integer");
+                        .HasColumnType("int");
 
                     b.Property<int?>("Attempt2Id")
-                        .HasColumnType("integer");
+                        .HasColumnType("int");
 
                     b.Property<DateTimeOffset?>("FinishedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("datetimeoffset");
 
                     b.Property<string>("Note")
                         .HasMaxLength(120)
-                        .HasColumnType("character varying(120)");
+                        .HasColumnType("nvarchar(120)");
 
                     b.Property<int?>("Player1Id")
-                        .HasColumnType("integer");
+                        .HasColumnType("int");
 
                     b.Property<int?>("Player2Id")
-                        .HasColumnType("integer");
+                        .HasColumnType("int");
 
                     b.Property<int?>("PuzzleId")
-                        .HasColumnType("integer");
+                        .HasColumnType("int");
 
                     b.Property<int>("Round")
-                        .HasColumnType("integer");
+                        .HasColumnType("int");
 
                     b.Property<int?>("Seed1")
-                        .HasColumnType("integer");
+                        .HasColumnType("int");
 
                     b.Property<int?>("Seed2")
-                        .HasColumnType("integer");
+                        .HasColumnType("int");
 
                     b.Property<int>("Slot")
-                        .HasColumnType("integer");
+                        .HasColumnType("int");
 
                     b.Property<DateTimeOffset?>("StartedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("datetimeoffset");
 
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasMaxLength(16)
-                        .HasColumnType("character varying(16)");
+                        .HasColumnType("nvarchar(16)");
 
                     b.Property<int>("TournamentId")
-                        .HasColumnType("integer");
+                        .HasColumnType("int");
 
                     b.Property<int?>("WinnerId")
-                        .HasColumnType("integer");
+                        .HasColumnType("int");
 
                     b.HasKey("Id");
 
@@ -374,35 +374,35 @@ namespace PuzzleArena.Api.Data.Migrations
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
+                        .HasColumnType("int");
 
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
                     b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("datetimeoffset");
 
                     b.Property<string>("Email")
                         .IsRequired()
                         .HasMaxLength(256)
-                        .HasColumnType("character varying(256)");
+                        .HasColumnType("nvarchar(256)");
 
                     b.Property<bool>("IsLocked")
-                        .HasColumnType("boolean");
+                        .HasColumnType("bit");
 
                     b.Property<string>("PasswordHash")
                         .IsRequired()
                         .HasMaxLength(500)
-                        .HasColumnType("character varying(500)");
+                        .HasColumnType("nvarchar(500)");
 
                     b.Property<string>("Role")
                         .IsRequired()
                         .HasMaxLength(16)
-                        .HasColumnType("character varying(16)");
+                        .HasColumnType("nvarchar(16)");
 
                     b.Property<string>("Username")
                         .IsRequired()
                         .HasMaxLength(32)
-                        .HasColumnType("character varying(32)");
+                        .HasColumnType("nvarchar(32)");
 
                     b.HasKey("Id");
 
@@ -416,20 +416,20 @@ namespace PuzzleArena.Api.Data.Migrations
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
+                        .HasColumnType("int");
 
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
                     b.Property<string>("GameType")
                         .IsRequired()
                         .HasMaxLength(16)
-                        .HasColumnType("character varying(16)");
+                        .HasColumnType("nvarchar(16)");
 
                     b.Property<int>("UserId")
-                        .HasColumnType("integer");
+                        .HasColumnType("int");
 
                     b.Property<int>("Value")
-                        .HasColumnType("integer");
+                        .HasColumnType("int");
 
                     b.HasKey("Id");
 
