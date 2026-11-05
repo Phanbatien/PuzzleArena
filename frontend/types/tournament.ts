@@ -18,6 +18,8 @@ export type MatchResponse = {
   note: string | null;
   startedAt: string | null;
   finishedAt: string | null;
+  player1Ready: boolean;
+  player2Ready: boolean;
 };
 
 export type BracketRound = { round: number; name: string; startsAt: string | null; matches: MatchResponse[] };
@@ -42,6 +44,10 @@ export type MyMatch = {
   status: MatchStatus;
   opponent: MatchPlayer | null;
   won: boolean | null;
+  started: boolean; // cả hai đã vào phòng, đã có giờ bắt đầu chung
+  ready: boolean; // mình đã vào phòng chờ
+  opponentReady: boolean;
+  startsAt: string | null;
 };
 
 export type TournamentDetail = {

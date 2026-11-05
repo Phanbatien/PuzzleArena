@@ -30,7 +30,7 @@ public static class Replay
             if (outcome is null) continue;
             if (kind == "W") mistakes++;
             // Giống AttemptService: nước đúng thì ghi vào bàn; Dò mìn trúng mìn cũng lộ ô mìn đó.
-            if (kind == "C" || puzzle.GameType == GameType.Minesweeper)
+            if (kind is "C" or "H" || puzzle.GameType == GameType.Minesweeper) // H = Gợi ý (luôn là ô đúng)
                 state = outcome.State;
         }
 

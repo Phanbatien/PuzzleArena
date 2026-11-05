@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import type { HubConnection } from "@microsoft/signalr";
@@ -86,6 +86,8 @@ function TournamentDetailContent() {
   const [now, setNow] = useState(() => Date.now());
   // Giờ server - giờ máy, để đồng hồ đếm ngược theo server chứ không theo máy người xem.
   const [clockOffset, setClockOffset] = useState(0);
+  // Đang ở phòng chờ trận: khi đối thủ vào và trận có giờ bắt đầu thì tự vào bàn chơi.
+  const wasInLobby = useRef(false);
 
   const reload = useCallback(async () => {
     if (!id) return;
@@ -153,6 +155,22 @@ function TournamentDetailContent() {
     return () => window.clearInterval(timer);
   }, []);
 
+  // Phòng chờ: tải lại mỗi 2 giây (dự phòng nếu mất SignalR); trận bắt đầu thì tự vào bàn chơi.
+  const myMatch = tournament?.myMatch;
+  const inLobby = myMatch?.status === "Live" && myMatch.ready && !myMatch.started;
+  const matchStarted = myMatch?.status === "Live" && myMatch.started;
+  useEffect(() => {
+    if (!inLobby) return;
+    wasInLobby.current = true;
+    const timer = window.setInterval(() => void reload(), 2000);
+    return () => window.clearInterval(timer);
+  }, [inLobby, reload]);
+  useEffect(() => {
+    if (!matchStarted || !wasInLobby.current) return;
+    wasInLobby.current = false;
+    void api.post<{ id?: number }>(`/api/tournaments/${id}/play`).then((r) => r.id && router.push(`/play/${r.id}`));
+  }, [matchStarted, id, router]);
+
   const run = async (kind: "register" | "play" | "advance") => {
     setBusy(kind);
     setMessage(null);
@@ -162,8 +180,14 @@ function TournamentDetailContent() {
         setMessage({ text: "Đăng ký thành công. Nhớ có mặt trước giờ bắt đầu.", type: "success" });
         await reload();
       } else if (kind === "play") {
-        const attempt = await api.post<{ id: number }>(`/api/tournaments/${id}/play`);
-        router.push(`/play/${attempt.id}`);
+        const result = await api.post<{ id?: number; waiting?: boolean; message?: string }>(`/api/tournaments/${id}/play`);
+        if (result.waiting) {
+          wasInLobby.current = true;
+          setMessage({ text: result.message ?? "Đang chờ đối thủ vào trận...", type: "success" });
+          await reload();
+        } else if (result.id) {
+          router.push(`/play/${result.id}`);
+        }
       } else {
         await api.post(`/api/tournaments/${id}/advance`);
         setMessage({ text: "Đã chuyển sang bước tiếp theo.", type: "success" });
@@ -228,8 +252,8 @@ function TournamentDetailContent() {
                 <span className="rounded-xl border border-emerald-400/25 bg-emerald-400/10 px-4 py-3 text-sm font-bold text-emerald-200">✓ Đã đăng ký</span>
               )}
               {canPlay && (
-                <button type="button" onClick={() => run("play")} disabled={busy !== null} className="pa-button">
-                  {busy === "play" ? "Đang vào..." : "🎮 Vào thi ngay"}
+                <button type="button" onClick={() => run("play")} disabled={busy !== null || inLobby} className="pa-button">
+                  {busy === "play" ? "Đang vào..." : inLobby ? "⏳ Đang chờ đối thủ..." : t.status === "Knockout" && !t.myMatch?.started ? "🎮 Vào phòng thi đấu" : "🎮 Vào thi ngay"}
                 </button>
               )}
               {canWatch && (
@@ -308,12 +332,19 @@ function TournamentDetailContent() {
               </p>
               <p className="text-sm text-slate-400">
                 {t.myMatch.status === "Pending" && `Bắt đầu lúc ${formatTime(currentRound?.startsAt)}. Hãy có mặt đúng giờ.`}
-                {t.myMatch.status === "Live" && "Trận đang diễn ra: vào thi ngay, ai giải xong trước thắng."}
+                {t.myMatch.status === "Live" && !t.myMatch.started && (t.myMatch.ready
+                  ? `Bạn đã vào phòng. Đang chờ ${t.myMatch.opponent?.username ?? "đối thủ"} vào, đủ hai người thì đếm ngược và bắt đầu cùng lúc.`
+                  : t.myMatch.opponentReady
+                    ? `${t.myMatch.opponent?.username ?? "Đối thủ"} đã vào phòng và đang chờ bạn!`
+                    : "Hãy vào phòng thi đấu. Không vào trước hạn sẽ bị xử thua.")}
+                {t.myMatch.status === "Live" && t.myMatch.started && "Trận đang diễn ra: vào thi ngay, ai giải xong trước thắng."}
                 {t.myMatch.status === "Done" && (t.myMatch.won ? (t.status === "Closed" ? "Bạn đã thắng trận cuối cùng!" : "Bạn thắng, chờ vòng tiếp theo.") : `Bạn đã dừng bước ở ${t.myMatch.roundName}.`)}
               </p>
             </div>
             {canPlay && t.status === "Knockout" && (
-              <button type="button" onClick={() => run("play")} disabled={busy !== null} className="pa-button">🎮 Vào thi</button>
+              <button type="button" onClick={() => run("play")} disabled={busy !== null || inLobby} className="pa-button">
+                {inLobby ? "⏳ Đang chờ..." : t.myMatch.started ? "🎮 Vào thi" : "🎮 Vào phòng"}
+              </button>
             )}
           </section>
         )}

@@ -70,17 +70,23 @@ public static class TournamentEndpoints
         return error is null ? Results.Ok(new { registered = true }) : ApiResults.Error(error, status);
     }
 
-    // Trả về lượt chơi giống /api/practice, FE chuyển sang /play/{id}.
+    // Vòng loại: trả lượt chơi. Nhánh đấu: lần gọi đầu là "vào phòng chờ" (202 khi đối thủ chưa vào);
+    // đủ hai người thì trả lượt chơi có giờ bắt đầu chung (startedAt). FE chuyển sang /play/{id}.
     private static async Task<IResult> Play(
         int id,
         HttpContext http,
         TournamentService tournaments,
         AttemptService attempts,
+        TournamentEvents events,
         CancellationToken ct)
     {
         if (AuthEndpoints.CurrentUserId(http) is not { } userId) return Unauthorized();
 
         var result = await tournaments.Play(id, userId, ct);
+        if (result.Status is StatusCodes.Status202Accepted or StatusCodes.Status200OK && await tournaments.Load(id, ct) is { } t)
+            await events.Bracket(t.Id, t.Status, ct); // trang của đối thủ cập nhật "đã vào phòng" / "trận bắt đầu"
+        if (result.Status == StatusCodes.Status202Accepted)
+            return Results.Json(new { waiting = true, message = result.Error }, statusCode: StatusCodes.Status202Accepted);
         if (result.Error is not null)
             return ApiResults.Error(result.Error, result.Status);
 

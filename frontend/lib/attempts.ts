@@ -15,5 +15,9 @@ export const getAttempt = (id: number) =>
 export const moveAttempt = (id: number, request: MoveRequest) =>
   api.post<MoveResponse>(`/api/attempts/${id}/move`, request);
 
+// Gợi ý: server điền giúp một ô đúng (tốn 1 Gợi ý, tối đa 1 lần mỗi ván, không dùng trong giải đấu).
+export const hintAttempt = (id: number) =>
+  api.post<MoveResponse>(`/api/attempts/${id}/hint`);
+
 export const abandonAttempt = (id: number) =>
   api.post<AttemptResponse>(`/api/attempts/${id}/abandon`);

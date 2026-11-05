@@ -6,6 +6,7 @@ using PuzzleArena.Api.Boosters;
 using PuzzleArena.Api.Data;
 using PuzzleArena.Api.Domain;
 using PuzzleArena.Api.Entities;
+using PuzzleArena.Api.Games;
 
 namespace PuzzleArena.Tests;
 
@@ -53,7 +54,7 @@ public class AdminHintTests : IClassFixture<ApiFactory>
     }
 
     [Fact]
-    public async Task Hint_rejects_tournament_finished_and_empty_balance_then_returns_501_without_spending()
+    public async Task Hint_fills_one_correct_cell_once_per_game_and_is_refused_in_tournaments_and_finished_games()
     {
         var client = _factory.CreateClient();
         TestAuth.Use(client, await TestAuth.DevTokenAsync(client, "player7"));
@@ -76,19 +77,23 @@ public class AdminHintTests : IClassFixture<ApiFactory>
         var ended = await client.PostAsync($"/api/attempts/{finished}/hint", null);
         Assert.Equal(HttpStatusCode.BadRequest, ended.StatusCode);
 
-        var pending = await client.PostAsync($"/api/attempts/{empty}/hint", null);
-        Assert.Equal(HttpStatusCode.NotImplemented, pending.StatusCode);
-        var body = await pending.Content.ReadFromJsonAsync<JsonElement>();
-        Assert.Equal("Gợi ý chưa nối với bàn chơi.", body.GetProperty("error").GetString());
+        var hint = await client.PostAsync($"/api/attempts/{empty}/hint", null);
+        Assert.Equal(HttpStatusCode.OK, hint.StatusCode);
+        var body = await hint.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.True(body.GetProperty("correct").GetBoolean());
+        Assert.True(body.GetProperty("attempt").GetProperty("progress").GetInt32() > 0); // một ô trống đã được điền đúng
+
+        var again = await client.PostAsync($"/api/attempts/{empty}/hint", null);
+        Assert.Equal(HttpStatusCode.BadRequest, again.StatusCode);
+        Assert.Equal("Mỗi ván chỉ dùng được 1 Gợi ý.", (await again.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("error").GetString());
 
         var balances = await client.GetFromJsonAsync<JsonElement>("/api/boosters");
-        Assert.Equal(1, balances.EnumerateArray().Single(b => b.GetProperty("type").GetString() == "Hint").GetProperty("amount").GetInt32());
+        Assert.Equal(0, balances.EnumerateArray().Single(b => b.GetProperty("type").GetString() == "Hint").GetProperty("amount").GetInt32());
 
         using var scope = _factory.Services.CreateScope();
         var boosters = scope.ServiceProvider.GetRequiredService<IBoosterService>();
         Assert.False(await boosters.TryConsume(userId, BoosterType.Hint, tournament));
-        Assert.True(await boosters.TryConsume(userId, BoosterType.Hint, empty));
-        Assert.True(await boosters.TryConsume(userId, BoosterType.Hint, empty));
+        Assert.True(await boosters.TryConsume(userId, BoosterType.Hint, empty)); // đã trả cho ván này, không trừ thêm
         Assert.Equal(0, await boosters.Balance(userId, BoosterType.Hint));
     }
 
@@ -155,15 +160,7 @@ public class AdminHintTests : IClassFixture<ApiFactory>
     {
         using var scope = _factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDb>();
-        var puzzle = new Puzzle
-        {
-            GameType = GameType.Sudoku,
-            Difficulty = Difficulty.Easy,
-            Seed = Random.Shared.Next(),
-            BoardConfig = "0",
-            Solution = "secret-answer",
-            IsDaily = false,
-        };
+        var puzzle = GameEngine.Generate(GameType.Sudoku, Difficulty.Easy, Random.Shared.Next());
         db.Puzzles.Add(puzzle);
         await db.SaveChangesAsync();
         var attempt = new Attempt
@@ -173,7 +170,7 @@ public class AdminHintTests : IClassFixture<ApiFactory>
             TournamentId = tournamentId,
             StartedAt = DateTimeOffset.UtcNow,
             Status = status,
-            State = "",
+            State = GameEngine.InitialState(puzzle),
             MoveLog = "",
         };
         db.Attempts.Add(attempt);

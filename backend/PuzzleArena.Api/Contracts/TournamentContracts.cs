@@ -53,12 +53,25 @@ public record MatchResponse(
     int? WinnerId,
     string? Note,
     DateTimeOffset? StartedAt,
-    DateTimeOffset? FinishedAt);
+    DateTimeOffset? FinishedAt,
+    bool Player1Ready,
+    bool Player2Ready);
 
 public record BracketRound(int Round, string Name, DateTimeOffset? StartsAt, List<MatchResponse> Matches);
 
 // Trận của người đang xem (nếu có): để FE hiện nút "Vào thi" và đếm ngược tới giờ trận.
-public record MyMatchResponse(int MatchId, int Round, string RoundName, MatchStatus Status, MatchPlayer? Opponent, bool? Won);
+// Started = cả hai đã vào và đã có giờ bắt đầu chung; Ready/OpponentReady = ai đã vào phòng chờ.
+public record MyMatchResponse(
+    int MatchId,
+    int Round,
+    string RoundName,
+    MatchStatus Status,
+    MatchPlayer? Opponent,
+    bool? Won,
+    bool Started,
+    bool Ready,
+    bool OpponentReady,
+    DateTimeOffset? StartsAt);
 
 // GET /api/tournaments/{id}
 public record TournamentDetailResponse(

@@ -21,6 +21,7 @@ public sealed class FastTournamentFactory : ApiFactory
         base.ConfigureWebHost(builder);
         builder.UseSetting("Tournaments:SpectatorDelaySeconds", "0");
         builder.UseSetting("Tournaments:RoundBreakSeconds", "0");
+        builder.UseSetting("Tournaments:CountdownSeconds", "0");
     }
 }
 
@@ -32,6 +33,7 @@ public sealed class ShortDelayFactory : ApiFactory
         base.ConfigureWebHost(builder);
         builder.UseSetting("Tournaments:SpectatorDelaySeconds", "2");
         builder.UseSetting("Tournaments:RoundBreakSeconds", "0");
+        builder.UseSetting("Tournaments:CountdownSeconds", "0");
     }
 }
 
@@ -51,6 +53,9 @@ public class SpectatorDelayTests : IClassFixture<ShortDelayFactory>
         await H.Register(p7, id);
         await H.Register(p8, id);
         await H.Advance(admin, id);
+        await H.Enter(p7, id);
+        await H.Play(p8, id);
+        var attempt = await H.Play(p7, id);
         var spectator = _factory.CreateClient();
 
         // Trận vừa bắt đầu: theo dòng thời gian trễ thì trận chưa bắt đầu.
@@ -59,7 +64,6 @@ public class SpectatorDelayTests : IClassFixture<ShortDelayFactory>
         Assert.Equal(0, early.GetProperty("matches").GetArrayLength());
 
         await Task.Delay(2500);
-        var attempt = await H.Play(p7, id);
         await H.FillOne(p7, attempt, await H.Solution(_factory, attempt.GetProperty("puzzleId").GetInt32()));
 
         // Trận đã hiện, nhưng nước vừa đi chưa hiện.
@@ -238,9 +242,20 @@ public class KnockoutFlowTests : IClassFixture<FastTournamentFactory>
         Assert.Equal(JsonValueKind.Null, bye.GetProperty("player2").ValueKind);
         Assert.Equal(HttpStatusCode.BadRequest, (await p1.PostAsync($"/api/tournaments/{id}/play", null)).StatusCode);
 
+        // Phòng chờ: player2 vào trước thì phải chờ, chưa có đề, khán giả chưa thấy trận.
+        Assert.Equal(HttpStatusCode.Accepted, (await p2.PostAsync($"/api/tournaments/{id}/play", null)).StatusCode);
+        var waiting = (await p2.GetFromJsonAsync<JsonElement>($"/api/tournaments/{id}")).GetProperty("myMatch");
+        Assert.False(waiting.GetProperty("started").GetBoolean());
+        Assert.True(waiting.GetProperty("ready").GetBoolean());
+        Assert.False(waiting.GetProperty("opponentReady").GetBoolean());
+        Assert.Equal(0, (await outsider.GetFromJsonAsync<JsonElement>($"/api/tournaments/{id}/live")).GetProperty("matches").GetArrayLength());
+
+        var a3 = await H.Play(p3, id); // đủ hai người: trận bắt đầu, cùng một giờ cho cả hai
         var a2 = await H.Play(p2, id);
-        var a3 = await H.Play(p3, id);
         Assert.Equal(a2.GetProperty("puzzleId").GetInt32(), a3.GetProperty("puzzleId").GetInt32()); // hai người cùng một đề
+        Assert.Equal(a2.GetProperty("startedAt").GetString(), a3.GetProperty("startedAt").GetString());
+        var abandon = await p3.PostAsync($"/api/attempts/{a3.GetProperty("id").GetInt32()}/abandon", null);
+        Assert.Equal(HttpStatusCode.BadRequest, abandon.StatusCode); // đang thi đấu không được bỏ cuộc
         Assert.Equal(1, (await outsider.GetFromJsonAsync<JsonElement>($"/api/tournaments/{id}/live")).GetProperty("matches").GetArrayLength());
 
         // player2 giải xong trước -> thắng; player3 bị dừng lượt và bị loại; chung kết bắt đầu ngay (nghỉ 0 giây trong test).
@@ -255,6 +270,8 @@ public class KnockoutFlowTests : IClassFixture<FastTournamentFactory>
         Assert.Equal("Giải xong trước", detail.GetProperty("bracket")[0].GetProperty("matches")[1].GetProperty("note").GetString());
 
         // Chung kết: player1 sai 3 lần -> thua, player2 vô địch.
+        await H.Enter(p1, id);
+        await H.Play(p2, id);
         var f1 = await H.Play(p1, id);
         await H.Lose(p1, f1, await H.Solution(_factory, f1.GetProperty("puzzleId").GetInt32()));
 
@@ -335,9 +352,74 @@ public class KnockoutFlowTests : IClassFixture<FastTournamentFactory>
         Assert.DoesNotContain(semis, m => m.GetRawText().Contains("player5"));
 
         // Hai trận khác nhau là hai đề khác nhau: xem trận khác không giúp gì cho trận của mình.
+        foreach (var n in new[] { "player3", "player1", "player2", "player4" }) await H.Enter(clients[n], id);
         var m1 = await H.Play(clients["player3"], id);
         var m2 = await H.Play(clients["player1"], id);
         Assert.NotEqual(m1.GetProperty("puzzleId").GetInt32(), m2.GetProperty("puzzleId").GetInt32());
+    }
+}
+
+public class NoShowTests(FastTournamentFactory factory) : IClassFixture<FastTournamentFactory>
+{
+    [Fact]
+    public async Task A_player_who_never_enters_the_match_loses_it()
+    {
+        var admin = await H.Client(factory, "admin");
+        var id = await H.Create(admin, bracketSize: 4);
+        var p5 = await H.Client(factory, "player5");
+        var p6 = await H.Client(factory, "player6");
+        await H.Register(p5, id);
+        await H.Register(p6, id);
+        await H.Advance(admin, id);
+
+        await H.Enter(p6, id);           // chỉ player6 vào phòng
+        await H.Advance(admin, id);      // hết giờ vào phòng (admin ép)
+
+        var detail = await factory.CreateClient().GetFromJsonAsync<JsonElement>($"/api/tournaments/{id}");
+        Assert.Equal("Closed", detail.GetProperty("status").GetString());
+        Assert.Equal("player6", detail.GetProperty("champion").GetProperty("username").GetString());
+        Assert.Equal("Đối thủ không vào trận", detail.GetProperty("bracket")[0].GetProperty("matches")[0].GetProperty("note").GetString());
+    }
+}
+
+/// <summary>Đếm ngược 2 giây trước khi trận bắt đầu.</summary>
+public sealed class CountdownFactory : ApiFactory
+{
+    protected override void ConfigureWebHost(IWebHostBuilder builder)
+    {
+        base.ConfigureWebHost(builder);
+        builder.UseSetting("Tournaments:CountdownSeconds", "2");
+    }
+}
+
+public class CountdownTests(CountdownFactory factory) : IClassFixture<CountdownFactory>
+{
+    [Fact]
+    public async Task Both_players_start_at_the_same_moment_and_see_nothing_before_it()
+    {
+        var admin = await H.Client(factory, "admin");
+        var id = await H.Create(admin, bracketSize: 4);
+        var p1 = await H.Client(factory, "player1");
+        var p2 = await H.Client(factory, "player2");
+        await H.Register(p1, id);
+        await H.Register(p2, id);
+        await H.Advance(admin, id);
+        await H.Enter(p1, id);
+        var a2 = await H.Play(p2, id);
+        var a1 = await H.Play(p1, id);
+
+        Assert.Equal(a1.GetProperty("startedAt").GetString(), a2.GetProperty("startedAt").GetString());
+        Assert.True(DateTimeOffset.Parse(a1.GetProperty("startedAt").GetString()!) > DateTimeOffset.Parse(a1.GetProperty("serverNow").GetString()!));
+        var hidden = a1.GetProperty("board").GetProperty("cells").GetString()!;
+        Assert.All(hidden, c => Assert.Equal('0', c)); // chưa tới giờ: chưa thấy đề
+        var early = await p1.PostAsJsonAsync($"/api/attempts/{a1.GetProperty("id").GetInt32()}/move", new { index = 0, value = 1 });
+        Assert.Equal(HttpStatusCode.BadRequest, early.StatusCode);
+        Assert.Contains("chưa bắt đầu", (await early.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("error").GetString());
+
+        await Task.Delay(2300);
+        var started = await p1.GetFromJsonAsync<JsonElement>($"/api/attempts/{a1.GetProperty("id").GetInt32()}");
+        Assert.Contains(started.GetProperty("board").GetProperty("cells").GetString()!, c => c != '0'); // giờ đã thấy đề
+        await H.FillOne(p1, started, await H.Solution(factory, started.GetProperty("puzzleId").GetInt32()));
     }
 }
 
@@ -397,6 +479,13 @@ internal static class H
         var response = await admin.PostAsync($"/api/tournaments/{id}/advance", null);
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         return (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("status").GetString()!;
+    }
+
+    // Vào phòng chờ của trận: 202 nếu đối thủ chưa vào, 200 nếu trận đã bắt đầu.
+    public static async Task Enter(HttpClient client, int id)
+    {
+        var response = await client.PostAsync($"/api/tournaments/{id}/play", null);
+        Assert.Contains(response.StatusCode, new[] { HttpStatusCode.OK, HttpStatusCode.Accepted });
     }
 
     public static async Task<JsonElement> Play(HttpClient client, int id)

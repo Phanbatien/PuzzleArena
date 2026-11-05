@@ -102,6 +102,8 @@ public sealed class AttemptService(
         }
         if (attempt.Status != AttemptStatus.InProgress)
             return AttemptResult.Fail(StatusCodes.Status400BadRequest, "Lượt chơi đã kết thúc.");
+        if (now < attempt.StartedAt) // trận giải đấu đang đếm ngược: hai người bắt đầu cùng một giờ
+            return AttemptResult.Fail(StatusCodes.Status400BadRequest, "Trận chưa bắt đầu, hãy chờ đếm ngược.");
 
         var puzzle = attempt.Puzzle;
         var outcome = GameEngine.Apply(puzzle, attempt.State, index, value);
@@ -281,6 +283,66 @@ public sealed class AttemptService(
         return new AttemptResult(attempt);
     }
 
+    /// <summary>
+    /// Gợi ý (bổ trợ): server điền giúp một ô đúng chọn ngẫu nhiên (Sudoku: một ô trống; Dò mìn: mở một ô không có mìn).
+    /// Chỉ ngoài giải đấu, tối đa 1 lần mỗi ván, tốn 1 Gợi ý. Ghi vào MoveLog với K = H.
+    /// </summary>
+    public async Task<AttemptResult> UseHint(int userId, int attemptId, CancellationToken ct = default)
+    {
+        var result = await HintCore(userId, attemptId, ct);
+        if (result.Attempt is not null)
+            await Notify(result.Attempt, ct);
+        return result;
+    }
+
+    private async Task<AttemptResult> HintCore(int userId, int attemptId, CancellationToken ct)
+    {
+        var attempt = await Load(attemptId, ct);
+        if (attempt is null)
+            return AttemptResult.Fail(StatusCodes.Status404NotFound, "Không tìm thấy lượt chơi.");
+        if (attempt.UserId != userId)
+            return AttemptResult.Fail(StatusCodes.Status403Forbidden, "Đây không phải lượt chơi của bạn.");
+        if (attempt.TournamentId is not null)
+            return AttemptResult.Fail(StatusCodes.Status400BadRequest, "Không dùng bổ trợ trong giải đấu.");
+
+        var now = DateTimeOffset.UtcNow;
+        if (await ExpireIfNeeded(attempt, now, ct))
+            return AttemptResult.Fail(StatusCodes.Status400BadRequest, "Đã hết giờ, lượt chơi kết thúc.");
+        if (attempt.Status != AttemptStatus.InProgress)
+            return AttemptResult.Fail(StatusCodes.Status400BadRequest, "Lượt chơi đã kết thúc.");
+        if (attempt.MoveLog.Contains("|H\n"))
+            return AttemptResult.Fail(StatusCodes.Status400BadRequest, "Mỗi ván chỉ dùng được 1 Gợi ý.");
+
+        var puzzle = attempt.Puzzle;
+        var candidates = Enumerable.Range(0, attempt.State.Length)
+            .Where(i => puzzle.GameType == GameType.Sudoku
+                ? attempt.State[i] == '0'
+                : attempt.State[i] == '#' && puzzle.Solution[i] != 'M')
+            .ToList();
+        if (candidates.Count == 0)
+            return AttemptResult.Fail(StatusCodes.Status400BadRequest, "Không còn ô nào để gợi ý.");
+        if (!await boosters.TryConsume(userId, BoosterType.Hint, attempt.Id, ct))
+            return AttemptResult.Fail(StatusCodes.Status400BadRequest, "Bạn không còn Gợi ý.");
+
+        int index = candidates[Random.Shared.Next(candidates.Count)];
+        int value = puzzle.GameType == GameType.Sudoku ? puzzle.Solution[index] - '0' : 0;
+        var outcome = GameEngine.Apply(puzzle, attempt.State, index, value)!; // ô đúng / ô an toàn nên luôn Correct
+        attempt.State = outcome.State;
+        attempt.Progress = GameEngine.Progress(puzzle, attempt.State);
+        Log(attempt, Math.Max(0L, (long)(now - attempt.StartedAt).TotalMilliseconds), index, value, 'H');
+
+        if (outcome.Solved)
+        {
+            attempt.Progress = 100;
+            await Finish(attempt, solved: true, at: now, ct);
+        }
+        else
+        {
+            await db.SaveChangesAsync(ct);
+        }
+        return new AttemptResult(attempt, Correct: true);
+    }
+
     public async Task<AttemptResponse> ToResponse(Attempt a, CancellationToken ct = default)
     {
         bool finished = a.Status != AttemptStatus.InProgress;
@@ -308,7 +370,7 @@ public sealed class AttemptService(
             a.DurationMs,
             DateTimeOffset.UtcNow,
             delta,
-            GameEngine.View(a.Puzzle, a.State, finished),
+            DateTimeOffset.UtcNow < a.StartedAt ? Hidden(a.Puzzle) : GameEngine.View(a.Puzzle, a.State, finished),
             a.Puzzle.IsDaily,
             a.TournamentId);
     }
@@ -336,6 +398,15 @@ public sealed class AttemptService(
         a.DurationMs = Math.Max(0L, (long)(at - a.StartedAt).TotalMilliseconds);
         await db.SaveChangesAsync(ct);
         await ratings.ApplyResult(a.UserId, a.Id, solved, ct); // chỉ tác dụng với đề daily, ván khác trả null
+    }
+
+    // Trận giải đấu đang đếm ngược: chưa cho xem đề, để hai người thấy đề cùng một lúc.
+    private static BoardView Hidden(Puzzle p)
+    {
+        var view = GameEngine.View(p, GameEngine.InitialState(p), finished: false);
+        return p.GameType == GameType.Sudoku
+            ? view with { Cells = new string('0', view.Cells.Length), Givens = new string('0', view.Cells.Length) }
+            : view with { Cells = new string('#', view.Cells.Length) };
     }
 
     private Task Notify(Attempt a, CancellationToken ct) => events?.Changed(a, ct) ?? Task.CompletedTask;

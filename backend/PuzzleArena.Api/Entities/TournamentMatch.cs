@@ -24,8 +24,11 @@ public class TournamentMatch
     public Puzzle? Puzzle { get; set; }
     public int? Attempt1Id { get; set; }
     public int? Attempt2Id { get; set; }
+    // Phòng chờ: mỗi người bấm "Vào thi" là sẵn sàng; đủ cả hai mới bắt đầu (cùng một giờ cho cả hai).
+    public DateTimeOffset? Ready1At { get; set; }
+    public DateTimeOffset? Ready2At { get; set; }
     public int? WinnerId { get; set; }
     public string? Note { get; set; } // vì sao thắng: giải xong trước, đối thủ thua, hết giờ, miễn đấu
-    public DateTimeOffset? StartedAt { get; set; }
+    public DateTimeOffset? StartedAt { get; set; } // giờ bắt đầu chung (sau đếm ngược); null = đang chờ hai người vào
     public DateTimeOffset? FinishedAt { get; set; }
 }
