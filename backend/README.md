@@ -2,6 +2,34 @@
 
 ASP.NET Core 10 Minimal API. Cần **.NET SDK 10**.
 
+## Kiến trúc 3 lớp
+
+```
+PuzzleArena.Api          (1) Presentation   HTTP endpoint, SignalR hub, JWT, CORS, đồng hồ nền
+      │  chỉ gọi xuống
+      ▼
+PuzzleArena.Business     (2) Business Logic  luật chơi, giải đấu, rating, bổ trợ, bảng xếp hạng, DTO
+      │  chỉ gọi xuống
+      ▼
+PuzzleArena.DataAccess   (3) Data Access     entity, AppDb (EF Core), migration, chọn SQL Server / SQLite
+```
+
+- Mỗi lớp là một project riêng; tham chiếu chỉ đi một chiều **Api → Business → DataAccess**, nên trình biên dịch
+  chặn luôn chuyện lớp dưới gọi ngược lên.
+- **Api không đụng database**: endpoint chỉ đọc request, lấy người dùng hiện tại, gọi một service, đổi `ServiceResult`
+  sang response (`ApiResults.From`).
+- **Business không biết HTTP / SignalR**: trả `ServiceResult<T>` (giá trị hoặc lỗi + mã gợi ý). Cần báo tin realtime
+  thì gọi interface `ITournamentNotifier`; lớp Api cài đặt nó bằng SignalR (`Realtime/SignalRTournamentNotifier`).
+- **DataAccess không biết luật chơi**: chỉ có bảng, quan hệ, migration. EF Core `AppDb` đóng vai trò Repository +
+  Unit of Work (mỗi `DbSet<T>` là một repository).
+- Đăng ký: `Program.cs` gọi `AddBusiness(config)`; `AddBusiness` gọi `AddDataAccess(config)`.
+
+Tạo migration mới (chạy trong `backend/`):
+
+```bash
+dotnet ef migrations add TenMigration --project PuzzleArena.DataAccess --startup-project PuzzleArena.Api --output-dir Migrations
+```
+
 ## Chạy với SQL Server (mặc định)
 
 Cần SQL Server cài trên máy (Express / Developer, instance mặc định `localhost`) và đăng nhập bằng tài khoản Windows.
@@ -96,7 +124,10 @@ dotnet test backend
   hết giờ thì tiến độ cao hơn thắng, rồi ít lỗi hơn, rồi hạt giống cao hơn. Xong vòng nghỉ 30 giây rồi vào vòng sau.
 - Khán giả (`/tournaments/<id>/watch`) xem cả hai người của mỗi trận, nhiều trận cùng lúc, **trễ 30 giây**;
   người đang thi không xem được trận của mình. Admin xem thời gian thực ở `/monitor`.
-- Cấu hình (để test/demo): `Tournaments:SpectatorDelaySeconds` (mặc định 30), `Tournaments:RoundBreakSeconds` (mặc định 30).
+- Mỗi trận có **phòng chờ**: hai người bấm "Vào thi", đủ cả hai thì đếm ngược rồi bắt đầu **cùng một giờ**
+  (trước đó bàn chơi bị che). Không vào trước hạn thì bị xử thua. Đang thi không được bỏ cuộc / thoát trận.
+- Cấu hình (để test/demo): `Tournaments:SpectatorDelaySeconds` (30), `Tournaments:RoundBreakSeconds` (30),
+  `Tournaments:ReadySeconds` (120, hạn vào phòng), `Tournaments:CountdownSeconds` (5).
 
 ## Demo giải đấu một mình
 
@@ -114,6 +145,6 @@ dotnet test backend
 
 | Thư mục / file | Người |
 |---|---|
-| `Auth/`, `Boosters/`, `Rating/`, `Data/AppDb.cs`, `DevSeeder.cs`, migrations, các endpoint auth/daily/profile/booster/admin | BE1 |
-| `Games/` (Sudoku, Dò mìn, GameEngine, AttemptService, CheatDetector), endpoint attempts | BE2 |
-| `Tournaments/`, `Hubs/ArenaHub.cs`, `Entities/Tournament*.cs`, `Endpoints/TournamentEndpoints.cs`, `Endpoints/LeaderboardEndpoints.cs`, `DemoLeaderboardSeeder.cs`, `scripts/demo-bots.mjs` | BE3 |
+| Business: `Auth/`, `Admin/`, `Daily/`, `Profile/`, `Boosters/`, `Rating/`, `Seeding/DevSeeder.cs` · DataAccess: `AppDb.cs`, `Entities/User*`, `BoosterGrant`, migrations · Api: endpoint auth/admin/daily/profile/booster | BE1 |
+| Business: `Games/` (Sudoku, Dò mìn, GameEngine, AttemptService, CheatDetector) · DataAccess: `Entities/Puzzle`, `Attempt` · Api: endpoint attempts | BE2 |
+| Business: `Tournaments/`, `Leaderboard/`, `Seeding/DemoLeaderboardSeeder.cs` · DataAccess: `Entities/Tournament*` · Api: `Hubs/ArenaHub.cs`, `Realtime/`, endpoint tournaments/leaderboard · `scripts/demo-bots.mjs`, `scripts/tunnel.ps1` | BE3 |

@@ -1,9 +1,7 @@
-using Microsoft.EntityFrameworkCore;
-using PuzzleArena.Api.Contracts;
-using PuzzleArena.Api.Data;
-using PuzzleArena.Api.Domain;
-using PuzzleArena.Api.Games;
-using PuzzleArena.Api.Tournaments;
+using PuzzleArena.Business.Contracts;
+using PuzzleArena.DataAccess.Domain;
+using PuzzleArena.Business.Games;
+using PuzzleArena.Business.Tournaments;
 
 namespace PuzzleArena.Api.Endpoints;
 
@@ -25,16 +23,8 @@ public static class TournamentEndpoints
         admin.MapGet("/{id:int}/monitor", Monitor);
     }
 
-    private static async Task<IResult> List(AppDb db, CancellationToken ct)
-    {
-        var rows = await db.Tournaments.AsNoTracking()
-            .Select(t => new { t.Id, t.Name, t.GameType, t.Difficulty, t.Status, t.StartsAt, t.BracketSize, t.RoundMinutes, Count = t.Entries.Count })
-            .ToListAsync(ct);
-        // Sắp xếp sau khi tải: SQLite (chạy dev) không ORDER BY được DateTimeOffset.
-        return Results.Ok(rows.OrderByDescending(t => t.StartsAt).Select(t => new TournamentListItem(
-            t.Id, t.Name, t.GameType, t.Difficulty, t.Status, t.StartsAt, t.BracketSize, t.RoundMinutes, t.Count,
-            Bracket.Summary(t.Count, t.BracketSize, t.RoundMinutes, t.Status))));
-    }
+    private static async Task<IResult> List(TournamentService tournaments, CancellationToken ct) =>
+        Results.Ok(await tournaments.List(ct));
 
     // Công khai: lịch, hình thức, nhánh đấu, bảng xếp hạng vòng loại. Không có bàn chơi.
     private static async Task<IResult> Detail(int id, HttpContext http, TournamentService tournaments, CancellationToken ct)
@@ -77,14 +67,14 @@ public static class TournamentEndpoints
         HttpContext http,
         TournamentService tournaments,
         AttemptService attempts,
-        TournamentEvents events,
+        ITournamentNotifier notifier,
         CancellationToken ct)
     {
         if (AuthEndpoints.CurrentUserId(http) is not { } userId) return Unauthorized();
 
         var result = await tournaments.Play(id, userId, ct);
         if (result.Status is StatusCodes.Status202Accepted or StatusCodes.Status200OK && await tournaments.Load(id, ct) is { } t)
-            await events.Bracket(t.Id, t.Status, ct); // trang của đối thủ cập nhật "đã vào phòng" / "trận bắt đầu"
+            await notifier.Bracket(t.Id, t.Status, ct); // trang của đối thủ cập nhật "đã vào phòng" / "trận bắt đầu"
         if (result.Status == StatusCodes.Status202Accepted)
             return Results.Json(new { waiting = true, message = result.Error }, statusCode: StatusCodes.Status202Accepted);
         if (result.Error is not null)
@@ -94,14 +84,14 @@ public static class TournamentEndpoints
     }
 
     // Admin ép bước tiếp theo ngay: bắt đầu giải, đóng vòng loại, bắt đầu vòng đấu, hoặc phân thắng thua theo luật hết giờ.
-    private static async Task<IResult> Advance(int id, TournamentService tournaments, TournamentEvents events, CancellationToken ct)
+    private static async Task<IResult> Advance(int id, TournamentService tournaments, ITournamentNotifier notifier, CancellationToken ct)
     {
         if (await tournaments.Load(id, ct) is not { } t) return NotFound();
 
         if (await tournaments.Advance(t, ct) is { } error)
             return ApiResults.Error(error, StatusCodes.Status400BadRequest);
 
-        await events.Bracket(t.Id, t.Status, ct);
+        await notifier.Bracket(t.Id, t.Status, ct);
         return Results.Ok(new { status = t.Status, currentRound = t.CurrentRound });
     }
 

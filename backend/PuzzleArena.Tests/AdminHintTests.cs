@@ -2,11 +2,11 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
-using PuzzleArena.Api.Boosters;
-using PuzzleArena.Api.Data;
-using PuzzleArena.Api.Domain;
-using PuzzleArena.Api.Entities;
-using PuzzleArena.Api.Games;
+using PuzzleArena.Business.Boosters;
+using PuzzleArena.DataAccess;
+using PuzzleArena.DataAccess.Domain;
+using PuzzleArena.DataAccess.Entities;
+using PuzzleArena.Business.Games;
 
 namespace PuzzleArena.Tests;
 
@@ -48,7 +48,7 @@ public class AdminHintTests : IClassFixture<ApiFactory>
         var login = await anonymous.PostAsJsonAsync("/api/auth/login", new
         {
             username = "player6",
-            password = PuzzleArena.Api.Data.DevSeeder.Password,
+            password = PuzzleArena.Business.Seeding.DevSeeder.Password,
         });
         Assert.Equal(HttpStatusCode.Forbidden, login.StatusCode);
     }

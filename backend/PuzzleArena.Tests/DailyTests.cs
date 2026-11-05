@@ -2,9 +2,9 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using PuzzleArena.Api.Data;
-using PuzzleArena.Api.Domain;
-using PuzzleArena.Api.Rating;
+using PuzzleArena.DataAccess;
+using PuzzleArena.DataAccess.Domain;
+using PuzzleArena.Business.Rating;
 
 namespace PuzzleArena.Tests;
 

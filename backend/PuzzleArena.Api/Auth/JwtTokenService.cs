@@ -2,13 +2,13 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
 using Microsoft.IdentityModel.Tokens;
-using PuzzleArena.Api.Entities;
+using PuzzleArena.Business.Contracts;
 
 namespace PuzzleArena.Api.Auth;
 
 public static class JwtTokenService
 {
-    public static string Create(User user, IConfiguration config)
+    public static string Create(UserResponse user, IConfiguration config)
     {
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(config["Jwt:Key"]!));
         var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);

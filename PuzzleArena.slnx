@@ -1,6 +1,14 @@
 <Solution>
-  <Folder Name="/backend/">
+  <Folder Name="/backend/1-Presentation/">
     <Project Path="backend/PuzzleArena.Api/PuzzleArena.Api.csproj" />
+  </Folder>
+  <Folder Name="/backend/2-BusinessLogic/">
+    <Project Path="backend/PuzzleArena.Business/PuzzleArena.Business.csproj" />
+  </Folder>
+  <Folder Name="/backend/3-DataAccess/">
+    <Project Path="backend/PuzzleArena.DataAccess/PuzzleArena.DataAccess.csproj" />
+  </Folder>
+  <Folder Name="/backend/Tests/">
     <Project Path="backend/PuzzleArena.Tests/PuzzleArena.Tests.csproj" />
   </Folder>
 </Solution>

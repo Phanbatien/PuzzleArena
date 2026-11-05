@@ -1,18 +1,15 @@
+// Lớp 1 - Presentation: cấu hình HTTP (JWT, CORS, JSON), SignalR, đồng hồ nền và các endpoint.
+// Mọi nghiệp vụ nằm ở lớp Business (AddBusiness); lớp này không biết database là gì.
 using System.Text;
 using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.AspNetCore.Identity;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
-using PuzzleArena.Api.Boosters;
-using PuzzleArena.Api.Contracts;
-using PuzzleArena.Api.Data;
 using PuzzleArena.Api.Endpoints;
-using PuzzleArena.Api.Entities;
-using PuzzleArena.Api.Games;
 using PuzzleArena.Api.Hubs;
-using PuzzleArena.Api.Rating;
-using PuzzleArena.Api.Tournaments;
+using PuzzleArena.Api.Realtime;
+using PuzzleArena.Business;
+using PuzzleArena.Business.Contracts;
+using PuzzleArena.Business.Tournaments;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -21,26 +18,16 @@ builder.Services.ConfigureHttpJsonOptions(options =>
     options.SerializerOptions.Converters.Add(new JsonStringEnumConverter());
 });
 
-var sqlite = builder.Configuration["UseSqlite"];
-if (!string.IsNullOrWhiteSpace(sqlite))
-    builder.Services.AddDbContext<AppDb>(options => options.UseSqlite(sqlite));
-else
-    builder.Services.AddDbContext<AppDb>(options =>
-        options.UseSqlServer(builder.Configuration.GetConnectionString("Default")));
+// Lớp 2 (Business) + lớp 3 (Data Access: SQL Server, hoặc SQLite khi có UseSqlite).
+builder.Services.AddBusiness(builder.Configuration);
 
-builder.Services.AddSingleton<IPasswordHasher<User>, PasswordHasher<User>>();
-builder.Services.AddSingleton<IPuzzleGenerator, GamePuzzleGenerator>();
-builder.Services.AddScoped<IRatingService, RatingService>();
-builder.Services.AddScoped<IBoosterService, BoosterService>();
-builder.Services.AddScoped<AttemptService>();
-
-// BE3: giải đấu, realtime, cache bảng xếp hạng.
-builder.Services.AddScoped<TournamentService>();
-builder.Services.AddScoped<TournamentEvents>();
-builder.Services.AddScoped<IAttemptEvents>(sp => sp.GetRequiredService<TournamentEvents>());
-builder.Services.AddHostedService<TournamentClock>();
+// Realtime: lớp Business báo tin qua ITournamentNotifier, ở đây cài đặt bằng SignalR.
 builder.Services.AddSignalR()
     .AddJsonProtocol(o => o.PayloadSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
+builder.Services.AddScoped<ITournamentNotifier, SignalRTournamentNotifier>();
+builder.Services.AddHostedService<TournamentClock>();
+
+// Cache bảng xếp hạng: Redis nếu có ConnectionStrings:Redis, không thì bộ nhớ.
 var redis = builder.Configuration.GetConnectionString("Redis");
 if (string.IsNullOrWhiteSpace(redis))
     builder.Services.AddDistributedMemoryCache();
@@ -110,22 +97,10 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
-using (var scope = app.Services.CreateScope())
-{
-    var db = scope.ServiceProvider.GetRequiredService<AppDb>();
-    if (db.Database.ProviderName?.Contains("Sqlite", StringComparison.OrdinalIgnoreCase) == true)
-        db.Database.EnsureCreated();
-    else
-        db.Database.Migrate();
-
-    if (app.Environment.IsDevelopment())
-    {
-        var hasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher<User>>();
-        await DevSeeder.SeedAsync(db, hasher);
-        if (app.Configuration.GetValue("Seed:FakeLeaderboard", false))
-            await DemoLeaderboardSeeder.SeedAsync(db, scope.ServiceProvider.GetRequiredService<IPuzzleGenerator>());
-    }
-}
+// Tạo / cập nhật bảng; môi trường dev thì thêm tài khoản dùng thử và (tùy chọn) dữ liệu giả cho bảng xếp hạng.
+await app.Services.InitializeDatabaseAsync(
+    app.Environment.IsDevelopment(),
+    app.Configuration.GetValue("Seed:FakeLeaderboard", false));
 
 app.UseCors("Frontend");
 app.UseAuthentication();
