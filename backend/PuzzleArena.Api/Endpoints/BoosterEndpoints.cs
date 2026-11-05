@@ -4,6 +4,7 @@ using PuzzleArena.Api.Contracts;
 using PuzzleArena.Api.Data;
 using PuzzleArena.Api.Domain;
 using PuzzleArena.Api.Entities;
+using PuzzleArena.Api.Games;
 
 namespace PuzzleArena.Api.Endpoints;
 
@@ -52,25 +53,17 @@ public static class BoosterEndpoints
         return Results.Ok(new BoosterBalanceResponse(body.Type, balance));
     }
 
-    private static async Task<IResult> UseHint(int id, HttpContext http, AppDb db, IBoosterService boosters)
+    // Điền giúp một ô đúng (AttemptService.UseHint). Trả về giống /move để FE cập nhật bàn chơi.
+    private static async Task<IResult> UseHint(int id, HttpContext http, AttemptService attempts, CancellationToken ct)
     {
         var userId = AuthEndpoints.CurrentUserId(http);
         if (userId is null)
             return ApiResults.Error("Phiên đăng nhập đã hết hạn hoặc chưa đăng nhập. Vui lòng đăng nhập lại.", StatusCodes.Status401Unauthorized);
 
-        var attempt = await db.Attempts.FirstOrDefaultAsync(a => a.Id == id);
-        if (attempt is null)
-            return ApiResults.Error("Không tìm thấy lượt chơi.", StatusCodes.Status404NotFound);
-        if (attempt.UserId != userId)
-            return ApiResults.Error("Bạn không có quyền thực hiện thao tác này.", StatusCodes.Status403Forbidden);
-        if (attempt.TournamentId is not null)
-            return ApiResults.Error("Không dùng bổ trợ trong giải đấu.", StatusCodes.Status400BadRequest);
-        if (attempt.Status != AttemptStatus.InProgress)
-            return ApiResults.Error("Lượt chơi đã kết thúc.", StatusCodes.Status400BadRequest);
-        if (await boosters.Balance(userId.Value, BoosterType.Hint) < 1)
-            return ApiResults.Error("Bạn không còn Gợi ý.", StatusCodes.Status400BadRequest);
+        var result = await attempts.UseHint(userId.Value, id, ct);
+        if (result.Error is not null)
+            return ApiResults.Error(result.Error, result.Status);
 
-        // BE2 reveals one cell via Apply. Until that exists, do not spend the hint.
-        return ApiResults.Error("Gợi ý chưa nối với bàn chơi.", StatusCodes.Status501NotImplemented);
+        return Results.Ok(new MoveResponse(Correct: true, Shielded: false, await attempts.ToResponse(result.Attempt!, ct)));
     }
 }

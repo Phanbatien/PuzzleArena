@@ -46,8 +46,19 @@ function solve(cells) {
 }
 
 async function playStage(name, token, speed) {
-  const attempt = await call(token, `/api/tournaments/${tournamentId}/play`, {});
+  // Nhánh đấu: lần gọi đầu là vào phòng chờ (202 { waiting }); gọi lại tới khi đối thủ vào và có lượt chơi.
+  let attempt = await call(token, `/api/tournaments/${tournamentId}/play`, {});
+  while (attempt?.waiting) {
+    await sleep(1000);
+    attempt = await call(token, `/api/tournaments/${tournamentId}/play`, {});
+  }
   if (attempt.status !== "InProgress") return;
+  // Đếm ngược chung: chờ tới giờ bắt đầu (theo giờ server) rồi mới đọc đề.
+  const wait = Date.parse(attempt.startedAt) - Date.parse(attempt.serverNow);
+  if (wait > 0) {
+    await sleep(wait + 200);
+    attempt = await call(token, `/api/attempts/${attempt.id}`);
+  }
   if (attempt.game !== "Sudoku") throw new Error("bots only play Sudoku tournaments");
   const answer = solve(attempt.board.cells);
   const todo = [...attempt.board.cells].flatMap((c, i) => (c === "0" ? [i] : [])).sort(() => Math.random() - 0.5);

@@ -47,7 +47,11 @@ export default function BracketView({ rounds, me }: { rounds: BracketRound[]; me
                   <PlayerLine player={m.player2} match={m} me={me} />
                   {(m.status === "Live" || m.note) && (
                     <p className={`border-t border-slate-800 px-3 py-1.5 text-[10px] ${m.status === "Live" ? "font-bold text-rose-300" : "text-slate-500"}`}>
-                      {m.status === "Live" ? "● Đang đấu" : m.note}
+                      {m.status !== "Live"
+                        ? m.note
+                        : m.startedAt
+                          ? "● Đang đấu"
+                          : `⏳ Phòng chờ: ${Number(m.player1Ready) + Number(m.player2Ready)}/2 đã vào`}
                     </p>
                   )}
                 </div>

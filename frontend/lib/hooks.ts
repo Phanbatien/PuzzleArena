@@ -5,6 +5,7 @@ import { getSuspiciousAttempts, voidAttempt } from "@/lib/admin";
 import {
   abandonAttempt,
   getAttempt,
+  hintAttempt,
   moveAttempt,
   startPractice,
 } from "@/lib/attempts";
@@ -19,14 +20,14 @@ import type {
 const attemptKey = (id: number) => ["attempt", id] as const;
 export type TimedAttemptResponse = AttemptResponse & { clientReceivedAt: number };
 
+// Ghi giờ máy lúc NHẬN dữ liệu (một lần), để tính lệch giờ với serverNow. Không làm trong `select`:
+// select chạy lại mỗi lần render nên mốc này luôn là "bây giờ" và mọi đồng hồ đếm ngược đứng yên.
+const timed = (attempt: AttemptResponse): TimedAttemptResponse => ({ ...attempt, clientReceivedAt: Date.now() });
+
 export function useAttempt(id: number) {
   return useQuery({
     queryKey: attemptKey(id),
-    queryFn: () => getAttempt(id),
-    select: (attempt): TimedAttemptResponse => ({
-      ...attempt,
-      clientReceivedAt: Date.now(),
-    }),
+    queryFn: async () => timed(await getAttempt(id)),
     enabled: Number.isInteger(id) && id > 0,
   });
 }
@@ -42,10 +43,7 @@ export function useMove(id: number) {
   return useMutation({
     mutationFn: (request: MoveRequest) => moveAttempt(id, request),
     onSuccess: (response) =>
-      queryClient.setQueryData<AttemptResponse>(
-        attemptKey(id),
-        response.attempt,
-      ),
+      queryClient.setQueryData<TimedAttemptResponse>(attemptKey(id), timed(response.attempt)),
     // No optimistic update is applied. Refetch restores the most recent server state after any failed move.
     onError: () => queryClient.invalidateQueries({ queryKey: attemptKey(id) }),
   });
@@ -56,7 +54,17 @@ export function useAbandon(id: number) {
   return useMutation({
     mutationFn: () => abandonAttempt(id),
     onSuccess: (attempt) =>
-      queryClient.setQueryData<AttemptResponse>(attemptKey(id), attempt),
+      queryClient.setQueryData<TimedAttemptResponse>(attemptKey(id), timed(attempt)),
+    onError: () => queryClient.invalidateQueries({ queryKey: attemptKey(id) }),
+  });
+}
+
+export function useHint(id: number) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => hintAttempt(id),
+    onSuccess: (response) =>
+      queryClient.setQueryData<TimedAttemptResponse>(attemptKey(id), timed(response.attempt)),
     onError: () => queryClient.invalidateQueries({ queryKey: attemptKey(id) }),
   });
 }
@@ -79,10 +87,7 @@ export function useVoidAttempt() {
   return useMutation({
     mutationFn: (id: number) => voidAttempt(id),
     onSuccess: (attempt) => {
-      queryClient.setQueryData<AttemptResponse>(
-        attemptKey(attempt.id),
-        attempt,
-      );
+      queryClient.setQueryData<TimedAttemptResponse>(attemptKey(attempt.id), timed(attempt));
       queryClient.invalidateQueries({ queryKey: ["admin", "suspicious"] });
     },
   });

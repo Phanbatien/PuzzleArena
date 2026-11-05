@@ -90,6 +90,11 @@ public static class AttemptEndpoints
         var userId = AuthEndpoints.CurrentUserId(http);
         if (userId is null) return Unauthorized();
 
+        // Đang thi đấu giải thì không được bỏ cuộc giữa trận (trận chỉ kết thúc khi giải xong, thua theo luật, hoặc hết giờ).
+        var current = await attempts.Get(userId.Value, isAdmin: false, id, ct);
+        if (current.Attempt is { TournamentId: not null, Status: AttemptStatus.InProgress })
+            return ApiResults.Error("Đang thi đấu giải: không thể bỏ cuộc giữa trận.", StatusCodes.Status400BadRequest);
+
         var result = await attempts.Abandon(userId.Value, id, ct);
         return await Respond(result, attempts, isMove: false, ct);
     }

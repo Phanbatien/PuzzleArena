@@ -330,6 +330,12 @@ namespace PuzzleArena.Api.Data.Migrations
                     b.Property<int?>("PuzzleId")
                         .HasColumnType("int");
 
+                    b.Property<DateTimeOffset?>("Ready1At")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<DateTimeOffset?>("Ready2At")
+                        .HasColumnType("datetimeoffset");
+
                     b.Property<int>("Round")
                         .HasColumnType("int");
 

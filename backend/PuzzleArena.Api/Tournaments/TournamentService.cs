@@ -23,6 +23,10 @@ public sealed class TournamentService(AppDb db, AttemptService attempts, IPuzzle
 {
     public int SpectatorDelaySeconds => config.GetValue("Tournaments:SpectatorDelaySeconds", 30);
     private TimeSpan RoundBreak => TimeSpan.FromSeconds(config.GetValue("Tournaments:RoundBreakSeconds", 30));
+    // Phòng chờ: vòng bắt đầu thì mỗi trận chờ hai người bấm "Vào thi"; quá ReadyWindow mà chưa đủ thì xử vắng mặt.
+    private TimeSpan ReadyWindow => TimeSpan.FromSeconds(config.GetValue("Tournaments:ReadySeconds", 120));
+    // Đủ hai người thì đếm ngược rồi bắt đầu cùng một giờ cho cả hai.
+    private TimeSpan Countdown => TimeSpan.FromSeconds(config.GetValue("Tournaments:CountdownSeconds", 5));
 
     public Task<Tournament?> Load(int id, CancellationToken ct = default) => db.Tournaments
         .Include(t => t.Entries).ThenInclude(e => e.User)
@@ -128,11 +132,15 @@ public sealed class TournamentService(AppDb db, AttemptService attempts, IPuzzle
                     await StartRound(t, round, now, ct);
                     return true;
                 }
-                var expired = round.Where(m => m.Status == MatchStatus.Live
-                    && (force || now >= m.StartedAt!.Value.AddMinutes(t.RoundMinutes))).ToList();
+                var noShow = round.Where(m => m.Status == MatchStatus.Live && m.StartedAt is null
+                    && (force || now >= t.RoundStartsAt!.Value + ReadyWindow)).ToList();
+                foreach (var m in noShow)
+                    await DecideNoShow(t, m, now, ct);
+                var expired = round.Where(m => m.Status == MatchStatus.Live && m.StartedAt is { } s
+                    && (force || now >= s.AddMinutes(t.RoundMinutes))).ToList();
                 foreach (var m in expired)
                     await DecideOnTime(t, m, now, ct);
-                if (expired.Count > 0) return true;
+                if (noShow.Count + expired.Count > 0) return true;
                 if (round.All(m => m.Status == MatchStatus.Done))
                 {
                     await FinishRound(t, now, ct);
@@ -246,22 +254,44 @@ public sealed class TournamentService(AppDb db, AttemptService attempts, IPuzzle
         t.RoundStartsAt = firstRoundAt;
     }
 
-    // Mọi trận của vòng bắt đầu cùng lúc; mỗi trận một đề riêng, hai người trong trận cùng đề đó.
+    // Vòng bắt đầu: mở phòng chờ cho mọi trận. Trận chỉ thật sự bắt đầu khi CẢ HAI đã vào (xem Play / BeginMatch).
     private async Task StartRound(Tournament t, List<TournamentMatch> round, DateTimeOffset now, CancellationToken ct)
     {
-        var deadline = now.AddMinutes(t.RoundMinutes);
         foreach (var m in round.Where(m => m.Status == MatchStatus.Pending))
-        {
-            var puzzle = generator.Generate(t.GameType, t.Difficulty, Random.Shared.Next());
-            m.Puzzle = puzzle;
-            m.Attempt1Id = (await attempts.Start(m.Player1Id!.Value, puzzle, t.Id, deadline, ct)).Id;
-            m.Attempt2Id = (await attempts.Start(m.Player2Id!.Value, puzzle, t.Id, deadline, ct)).Id;
-            m.PuzzleId = puzzle.Id;
-            m.StartedAt = now;
             m.Status = MatchStatus.Live;
-        }
         t.RoundStartsAt = now;
         await db.SaveChangesAsync(ct);
+    }
+
+    /// <summary>
+    /// Cả hai đã vào phòng: sinh đề (chỉ lúc này, nên không ai thấy đề trước), tạo lượt cho hai người với CÙNG một giờ
+    /// bắt đầu = bây giờ + Countdown. Trước giờ đó AttemptService che bàn chơi và không nhận nước đi.
+    /// </summary>
+    private async Task BeginMatch(Tournament t, TournamentMatch m, DateTimeOffset now, CancellationToken ct)
+    {
+        var start = now + Countdown;
+        var deadline = start.AddMinutes(t.RoundMinutes);
+        var puzzle = generator.Generate(t.GameType, t.Difficulty, Random.Shared.Next());
+        var a1 = await attempts.Start(m.Player1Id!.Value, puzzle, t.Id, deadline, ct);
+        var a2 = await attempts.Start(m.Player2Id!.Value, puzzle, t.Id, deadline, ct);
+        a1.StartedAt = start;
+        a2.StartedAt = start;
+        m.Puzzle = puzzle;
+        m.PuzzleId = puzzle.Id;
+        m.Attempt1Id = a1.Id;
+        m.Attempt2Id = a2.Id;
+        m.StartedAt = start;
+        await db.SaveChangesAsync(ct);
+    }
+
+    // Hết giờ vào phòng: ai đã vào thì thắng; cả hai vắng thì hạt giống cao hơn đi tiếp.
+    private Task DecideNoShow(Tournament t, TournamentMatch m, DateTimeOffset now, CancellationToken ct)
+    {
+        bool ready1 = m.Ready1At is not null, ready2 = m.Ready2At is not null;
+        var (winner, note) = ready1 == ready2
+            ? (m.Seed1 <= m.Seed2 ? m.Player1Id : m.Player2Id, "Cả hai không vào trận: hạt giống cao hơn đi tiếp")
+            : (ready1 ? m.Player1Id : m.Player2Id, "Đối thủ không vào trận");
+        return Complete(t, m, winner!.Value, note, now, ct);
     }
 
     /// <summary>
@@ -405,6 +435,19 @@ public sealed class TournamentService(AppDb db, AttemptService attempts, IPuzzle
             var m = t.Matches.FirstOrDefault(x => x.Round == t.CurrentRound && (x.Player1Id == userId || x.Player2Id == userId));
             if (m is { Status: MatchStatus.Live })
             {
+                if (m.StartedAt is null)
+                {
+                    var now = DateTimeOffset.UtcNow;
+                    if (m.Player1Id == userId) m.Ready1At ??= now;
+                    else m.Ready2At ??= now;
+                    if (m.Ready1At is null || m.Ready2At is null)
+                    {
+                        await db.SaveChangesAsync(ct);
+                        // 202: đã vào phòng chờ, FE gọi lại cho tới khi đối thủ vào và trận có giờ bắt đầu.
+                        return AttemptResult.Fail(StatusCodes.Status202Accepted, "Bạn đã vào phòng. Đang chờ đối thủ...");
+                    }
+                    await BeginMatch(t, m, now, ct);
+                }
                 var attemptId = m.Player1Id == userId ? m.Attempt1Id : m.Attempt2Id;
                 var attempt = await db.Attempts.Include(a => a.Puzzle).FirstAsync(a => a.Id == attemptId, ct);
                 return new AttemptResult(attempt);
@@ -454,15 +497,20 @@ public sealed class TournamentService(AppDb db, AttemptService attempts, IPuzzle
     public async Task<List<StandingResponse>> QualifierStandings(Tournament t, CancellationToken ct = default) =>
         Rank(t.Entries, await QualifierAttempts(t, ct));
 
-    public static DateTimeOffset? StageEndsAt(Tournament t) => t.Status switch
+    public DateTimeOffset? StageEndsAt(Tournament t)
     {
-        TournamentStatus.Open => t.StartsAt,
-        TournamentStatus.Qualifier => t.QualifierStartedAt?.AddMinutes(t.RoundMinutes),
-        TournamentStatus.Knockout when t.Matches.Any(m => m.Round == t.CurrentRound && m.Status == MatchStatus.Live)
-            => t.RoundStartsAt?.AddMinutes(t.RoundMinutes),
-        TournamentStatus.Knockout => t.RoundStartsAt, // đang nghỉ: đếm ngược tới giờ vòng sau
-        _ => null,
-    };
+        switch (t.Status)
+        {
+            case TournamentStatus.Open: return t.StartsAt;
+            case TournamentStatus.Qualifier: return t.QualifierStartedAt?.AddMinutes(t.RoundMinutes);
+            case TournamentStatus.Knockout:
+                var live = t.Matches.Where(m => m.Round == t.CurrentRound && m.Status == MatchStatus.Live).ToList();
+                if (live.Count == 0) return t.RoundStartsAt; // đang nghỉ: đếm ngược tới giờ vòng sau
+                // Trận đang chờ: hạn vào phòng; trận đang đấu: giờ hết trận. Vòng xong khi trận cuối xong.
+                return live.Max(m => m.StartedAt is { } s ? s.AddMinutes(t.RoundMinutes) : t.RoundStartsAt + ReadyWindow);
+            default: return null;
+        }
+    }
 
     public static string FormatSummary(Tournament t) =>
         Bracket.Summary(t.Entries.Count, t.BracketSize, t.RoundMinutes, t.Status);
@@ -481,7 +529,8 @@ public sealed class TournamentService(AppDb db, AttemptService attempts, IPuzzle
                 Bracket.RoundName(g.Key, t.RoundCount),
                 RoundStart(t, g.Key),
                 g.OrderBy(m => m.Slot).Select(m => new MatchResponse(
-                    m.Id, m.Round, m.Slot, m.Status, P(m.Player1Id), P(m.Player2Id), m.WinnerId, m.Note, m.StartedAt, m.FinishedAt)).ToList()))
+                    m.Id, m.Round, m.Slot, m.Status, P(m.Player1Id), P(m.Player2Id), m.WinnerId, m.Note, m.StartedAt, m.FinishedAt,
+                    m.Ready1At is not null, m.Ready2At is not null)).ToList()))
             .ToList();
 
         MyMatchResponse? myMatch = null;
@@ -489,7 +538,11 @@ public sealed class TournamentService(AppDb db, AttemptService attempts, IPuzzle
             myMatch = new MyMatchResponse(
                 mm.Id, mm.Round, Bracket.RoundName(mm.Round, t.RoundCount), mm.Status,
                 P(mm.Player1Id == me ? mm.Player2Id : mm.Player1Id),
-                mm.Status == MatchStatus.Done ? mm.WinnerId == me : null);
+                mm.Status == MatchStatus.Done ? mm.WinnerId == me : null,
+                mm.StartedAt is not null,
+                (mm.Player1Id == me ? mm.Ready1At : mm.Ready2At) is not null,
+                (mm.Player1Id == me ? mm.Ready2At : mm.Ready1At) is not null,
+                mm.StartedAt);
 
         var champion = t.Status == TournamentStatus.Closed
             ? P(t.Matches.FirstOrDefault(m => m.Round == t.RoundCount)?.WinnerId)
