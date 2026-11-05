@@ -4,12 +4,12 @@ using System.Text.Json;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using PuzzleArena.Api.Data;
-using PuzzleArena.Api.Domain;
-using PuzzleArena.Api.Entities;
-using PuzzleArena.Api.Games;
-using PuzzleArena.Api.Rating;
-using PuzzleArena.Api.Tournaments;
+using PuzzleArena.DataAccess;
+using PuzzleArena.DataAccess.Domain;
+using PuzzleArena.DataAccess.Entities;
+using PuzzleArena.Business.Games;
+using PuzzleArena.Business.Rating;
+using PuzzleArena.Business.Tournaments;
 
 namespace PuzzleArena.Tests;
 

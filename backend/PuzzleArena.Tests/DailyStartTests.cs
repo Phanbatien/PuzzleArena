@@ -1,11 +1,11 @@
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
-using PuzzleArena.Api.Boosters;
-using PuzzleArena.Api.Data;
-using PuzzleArena.Api.Domain;
-using PuzzleArena.Api.Entities;
-using PuzzleArena.Api.Games;
-using PuzzleArena.Api.Rating;
+using PuzzleArena.Business.Boosters;
+using PuzzleArena.DataAccess;
+using PuzzleArena.DataAccess.Domain;
+using PuzzleArena.DataAccess.Entities;
+using PuzzleArena.Business.Games;
+using PuzzleArena.Business.Rating;
 using Xunit;
 
 namespace PuzzleArena.Tests;

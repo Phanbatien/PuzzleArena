@@ -3,8 +3,9 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using PuzzleArena.Api.Data;
-using PuzzleArena.Api.Entities;
+using PuzzleArena.Business.Seeding;
+using PuzzleArena.DataAccess;
+using PuzzleArena.DataAccess.Entities;
 
 namespace PuzzleArena.Tests;
 

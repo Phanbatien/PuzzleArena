@@ -1,5 +1,5 @@
-using PuzzleArena.Api.Domain;
-using PuzzleArena.Api.Rating;
+using PuzzleArena.DataAccess.Domain;
+using PuzzleArena.Business.Rating;
 
 namespace PuzzleArena.Tests;
 

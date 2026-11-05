@@ -1,6 +1,6 @@
-using PuzzleArena.Api.Domain;
-using PuzzleArena.Api.Entities;
-using PuzzleArena.Api.Games;
+using PuzzleArena.DataAccess.Domain;
+using PuzzleArena.DataAccess.Entities;
+using PuzzleArena.Business.Games;
 using Xunit;
 
 namespace PuzzleArena.Tests;

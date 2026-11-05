@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Lớp 2 - Business Logic: luật chơi, giải đấu, rating, bổ trợ, bảng xếp hạng. Chỉ gọi xuống lớp Data Access. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Dùng các abstraction của ASP.NET Core (IPasswordHasher, IDistributedCache, StatusCodes, ILogger). -->
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\PuzzleArena.DataAccess\PuzzleArena.DataAccess.csproj" />
+  </ItemGroup>
+
+</Project>

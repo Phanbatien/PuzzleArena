@@ -1,8 +1,9 @@
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
-using PuzzleArena.Api.Data;
-using PuzzleArena.Api.Domain;
-using PuzzleArena.Api.Games;
+using PuzzleArena.Business.Seeding;
+using PuzzleArena.DataAccess;
+using PuzzleArena.DataAccess.Domain;
+using PuzzleArena.Business.Games;
 
 namespace PuzzleArena.Tests;
 

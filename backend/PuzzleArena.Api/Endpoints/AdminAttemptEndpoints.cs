@@ -1,6 +1,6 @@
-using PuzzleArena.Api.Contracts;
-using PuzzleArena.Api.Domain;
-using PuzzleArena.Api.Games;
+using PuzzleArena.Business.Contracts;
+using PuzzleArena.DataAccess.Domain;
+using PuzzleArena.Business.Games;
 
 namespace PuzzleArena.Api.Endpoints;
 
